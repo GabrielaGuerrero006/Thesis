@@ -20,7 +20,7 @@ detection_thread = None
 detection_start_time = None
 model_stage = 0  # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
 current_model = None
-csv_file_path = "detecciones.csv"
+# Removido csv_file_path estático - ahora se genera dinámicamente
 
 # Variables para el sistema de lotes e IDs
 used_lote_numbers = set()
@@ -49,13 +49,26 @@ def generate_id():
     current_id = generate_unique_number(used_id_numbers)
     return current_id
 
+def get_csv_filename():
+    """Genera el nombre del archivo CSV basado en el lote actual"""
+    global current_lote
+    if current_lote is None:
+        raise ValueError("No hay un lote activo para generar el nombre del archivo")
+    return f"Lote-{current_lote}.csv"
+
 def save_detections_to_csv():
-    """Guarda todas las detecciones del buffer al archivo CSV"""
-    global detections_buffer
+    """Guarda todas las detecciones del buffer al archivo CSV con nombre del lote"""
+    global detections_buffer, current_lote
     
     if not detections_buffer:
         print("No hay detecciones para guardar")
         return
+    
+    if current_lote is None:
+        raise ValueError("No hay un lote activo para guardar las detecciones")
+    
+    # Generar nombre del archivo con el lote
+    csv_file_path = get_csv_filename()
     
     # Crear el archivo CSV con las cabeceras si no existe
     file_exists = os.path.exists(csv_file_path)
@@ -322,8 +335,14 @@ def save_detections():
         if not detections_buffer:
             return jsonify({"status": "warning", "message": "No hay detecciones para guardar"})
         
+        if current_lote is None:
+            return jsonify({"status": "error", "message": "No hay un lote activo para guardar"})
+        
         # Contar detecciones antes de guardar
         detections_count = len(detections_buffer)
+        
+        # Obtener el nombre del archivo que se va a crear
+        csv_filename = get_csv_filename()
         
         # Guardar las detecciones en CSV
         save_detections_to_csv()
@@ -333,7 +352,8 @@ def save_detections():
         
         return jsonify({
             "status": "success", 
-            "message": f"Detecciones guardadas exitosamente. Total de registros guardados: {detections_count}"
+            "message": f"Detecciones guardadas exitosamente en '{csv_filename}'. Total de registros: {detections_count}",
+            "filename": csv_filename
         })
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al guardar: {str(e)}"})
