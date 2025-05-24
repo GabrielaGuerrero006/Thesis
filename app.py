@@ -280,6 +280,14 @@ def generate():
 def index():
     return render_template('index.html')
 
+@app.route('/detection')
+def detection():
+    return render_template('detection.html')
+
+@app.route('/results')
+def results():
+    return render_template('results.html')
+
 @app.route('/video_feed')
 def video_feed():
     return Response(generate(),

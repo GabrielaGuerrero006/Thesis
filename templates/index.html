@@ -3,323 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Mangos Exportables</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <title>Sistema de Detección de Mangos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .video-container {
-            position: relative;
-            width: 100%;
-            height: 480px;
-            background-color: #000;
-            overflow: hidden;
-        }
-        .error-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.7);
+        body {
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            color: white;
-            z-index: 10;
-            display: none;
+            background-color: #f8f9fa;
         }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid #fff;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 1rem;
+        .main-container {
+            text-align: center;
+            padding: 2rem;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .btn-container {
+            margin-top: 2rem;
         }
-        .info-box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
+        .btn-main {
+            margin: 1rem;
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            min-width: 250px;
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold text-center mb-8">Detector de Mangos Exportables</h1>
-
-        <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <!-- Información de Lote e ID -->
-            <div id="sessionInfo" class="info-box hidden">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p><strong>Lote:</strong> <span id="currentLote">-</span></p>
-                        <p><strong>ID:</strong> <span id="currentId">-</span></p>
-                    </div>
-                    <div class="text-right">
-                        <p><strong>Detecciones en memoria:</strong> <span id="detectionsCount">0</span></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Botones de control -->
-            <div class="flex justify-center mb-6 space-x-4">
-                <button id="startCamera" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200">
-                    Iniciar
-                </button>
-                <button id="stopCamera" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200" disabled>
-                    Detener Cámara
-                </button>
-                <button id="saveDetections" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200" disabled>
-                    Guardar
-                </button>
-            </div>
-
-            <div id="statusDisplay" class="mb-4 text-center hidden">
-                <p id="modelStatus" class="font-semibold text-blue-600"></p>
-            </div>
-
-            <div class="video-container rounded-lg">
-                <img id="videoFeed" src="" alt="Video Feed" class="w-full h-full object-contain hidden">
-                <div id="placeholder" class="absolute inset-0 flex items-center justify-center text-white">
-                    <p>Presiona "Iniciar" para comenzar</p>
-                </div>
-                <div id="errorOverlay" class="error-overlay">
-                    <div class="spinner"></div>
-                    <p id="errorMessage" class="text-center">Reconectando...</p>
-                    <button id="retryButton" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hidden">
-                        Reintentar
-                    </button>
-                </div>
-            </div>
-
-            <!-- Área de mensajes -->
-            <div id="messageArea" class="mt-4 hidden">
-                <div id="messageBox" class="p-4 rounded-lg">
-                    <p id="messageText"></p>
-                </div>
-            </div>
+<body>
+    <div class="container main-container">
+        <h1 class="mb-4">Sistema de Detección de Mangos</h1>
+        <div class="btn-container">
+            <a href="/detection" class="btn btn-primary btn-main">Empezar Detecciones</a>
+            <a href="/results" class="btn btn-success btn-main">Análisis de Resultados</a>
         </div>
     </div>
-
-    <script>
-        $(document).ready(function() {
-            let isRunning = false;
-            let statusCheckInterval;
-            let reconnectAttempts = 0;
-            const MAX_RECONNECT_ATTEMPTS = 3;
-            let videoFeed = document.getElementById('videoFeed');
-
-            function showMessage(message, type = 'info') {
-                $('#messageArea').removeClass('hidden');
-                $('#messageBox').removeClass('bg-green-100 bg-red-100 bg-blue-100 text-green-700 text-red-700 text-blue-700');
-                
-                if (type === 'success') {
-                    $('#messageBox').addClass('bg-green-100 text-green-700');
-                } else if (type === 'error') {
-                    $('#messageBox').addClass('bg-red-100 text-red-700');
-                } else {
-                    $('#messageBox').addClass('bg-blue-100 text-blue-700');
-                }
-                
-                $('#messageText').text(message);
-                
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    $('#messageArea').addClass('hidden');
-                }, 5000);
-            }
-
-            function showError(message, showRetry = true) {
-                $('#errorOverlay').show();
-                $('#errorMessage').text(message);
-                if (showRetry) {
-                    $('#retryButton').removeClass('hidden');
-                } else {
-                    $('#retryButton').addClass('hidden');
-                }
-            }
-
-            function hideError() {
-                $('#errorOverlay').hide();
-                $('#retryButton').addClass('hidden');
-            }
-
-            function resetVideo() {
-                isRunning = false;
-                $('#videoFeed').addClass('hidden').attr('src', '');
-                $('#placeholder').removeClass('hidden');
-                $('#startCamera').prop('disabled', false);
-                $('#stopCamera').prop('disabled', true);
-                // No deshabilitar el botón Guardar aquí
-                $('#statusDisplay').addClass('hidden');
-                hideError();
-                clearInterval(statusCheckInterval);
-            }
-
-            function updateButtonStates(data) {
-                // Habilitar el botón Guardar si hay detecciones en el buffer
-                if (data.detections_count && data.detections_count > 0) {
-                    $('#saveDetections').prop('disabled', false);
-                } else {
-                    $('#saveDetections').prop('disabled', true);
-                }
-            }
-
-            function updateSessionInfo(data) {
-                if (data.lote && data.id) {
-                    $('#currentLote').text(data.lote);
-                    $('#currentId').text(data.id);
-                    $('#detectionsCount').text(data.detections_count || 0);
-                    $('#sessionInfo').removeClass('hidden');
-                }
-                
-                // Actualizar estado de botones
-                updateButtonStates(data);
-            }
-
-            function handleVideoError() {
-                if (isRunning) {
-                    reconnectAttempts++;
-                    if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
-                        showError(`Reconectando... Intento ${reconnectAttempts} de ${MAX_RECONNECT_ATTEMPTS}`);
-                        setTimeout(reconnectVideo, 2000);
-                    } else {
-                        showError('No se pudo reconectar. Por favor, intente nuevamente.', true);
-                        resetVideo();
-                    }
-                }
-            }
-
-            function reconnectVideo() {
-                if (isRunning) {
-                    const timestamp = new Date().getTime();
-                    $('#videoFeed').attr('src', `/video_feed?t=${timestamp}`);
-                }
-            }
-
-            function checkCameraStatus() {
-                $.get('/camera_status')
-                    .done(function(data) {
-                        if (!data.running && isRunning) {
-                            resetVideo();
-                        }
-
-                        // Siempre actualizar la información de sesión y botones
-                        updateSessionInfo(data);
-
-                        if (data.running) {
-                            hideError();
-                            
-                            let statusText = "";
-                            if (data.model_stage === 1) {
-                                statusText = "Ejecutando modelo exportabilidad.pt (detección de mangos)";
-                            } else if (data.model_stage === 2) {
-                                statusText = "Ejecutando modelo madurez.pt (análisis de madurez)";
-                            } else if (data.model_stage === 3) {
-                                statusText = "Ejecutando modelo defectos.pt (detección de defectos)";
-                            }
-
-                            if (statusText) {
-                                $('#modelStatus').text(statusText);
-                                $('#statusDisplay').removeClass('hidden');
-                            }
-                        }
-                    })
-                    .fail(function() {
-                        handleVideoError();
-                    });
-            }
-
-            videoFeed.onerror = handleVideoError;
-
-            $('#startCamera').click(function() {
-                reconnectAttempts = 0;
-                $.get('/start_camera')
-                    .done(function(data) {
-                        if (data.status === 'success') {
-                            isRunning = true;
-                            hideError();
-                            $('#videoFeed').attr('src', '/video_feed').removeClass('hidden');
-                            $('#placeholder').addClass('hidden');
-                            $('#startCamera').prop('disabled', true);
-                            $('#stopCamera').prop('disabled', false);
-                            
-                            // Mostrar información de la sesión
-                            updateSessionInfo(data);
-                            
-                            statusCheckInterval = setInterval(checkCameraStatus, 500);
-                            showMessage(`Sesión iniciada - Lote: ${data.lote}, ID: ${data.id}`, 'info');
-                        } else {
-                            showError(data.message || 'Error al iniciar la cámara', true);
-                        }
-                    })
-                    .fail(function() {
-                        showError('Error al conectar con el servidor', true);
-                    });
-            });
-
-            $('#stopCamera').click(function() {
-                $.get('/stop_camera')
-                    .done(function(data) {
-                        if (data.status === 'success') {
-                            resetVideo();
-                            showMessage('Cámara detenida sin guardar', 'info');
-                        }
-                    })
-                    .fail(function() {
-                        showError('Error al detener la cámara', true);
-                    });
-            });
-
-            $('#saveDetections').click(function() {
-                // Mostrar loading
-                $(this).prop('disabled', true).text('Guardando...');
-                
-                $.get('/save_detections')
-                    .done(function(data) {
-                        if (data.status === 'success') {
-                            showMessage(data.message, 'success');
-                            // Ocultar información de sesión después de guardar
-                            $('#sessionInfo').addClass('hidden');
-                            // Actualizar contador
-                            $('#detectionsCount').text('0');
-                        } else {
-                            showMessage(data.message || 'Error al guardar', data.status === 'warning' ? 'info' : 'error');
-                        }
-                    })
-                    .fail(function() {
-                        showMessage('Error al conectar con el servidor para guardar', 'error');
-                    })
-                    .always(function() {
-                        $('#saveDetections').prop('disabled', true).text('Guardar');
-                    });
-            });
-
-            $('#retryButton').click(function() {
-                reconnectAttempts = 0;
-                hideError();
-                $('#startCamera').click();
-            });
-
-            // Verificar estado inicial al cargar la página
-            checkCameraStatus();
-            setInterval(function() {
-                if (!isRunning) {
-                    // Verificar periódicamente el estado incluso cuando no esté corriendo
-                    $.get('/camera_status').done(function(data) {
-                        updateSessionInfo(data);
-                    });
-                }
-            }, 2000);
-        });
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>
+</html> 
