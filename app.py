@@ -7,6 +7,7 @@ import time
 import csv
 import os
 import datetime
+import random
 
 app = Flask(__name__)
 
@@ -21,32 +22,76 @@ model_stage = 0  # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4
 current_model = None
 csv_file_path = "detecciones.csv"
 
-def init_csv():
-    """Inicializa el archivo CSV si no existe"""
-    if not os.path.exists(csv_file_path):
-        with open(csv_file_path, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['Fecha', 'Hora', 'Modelo', 'Tipo_Deteccion', 'Confianza'])
-        print(f"Archivo CSV creado en {csv_file_path}")
+# Variables para el sistema de lotes e IDs
+used_lote_numbers = set()
+used_id_numbers = set()
+current_lote = None
+current_id = None
+detections_buffer = []  # Buffer para almacenar todas las detecciones antes de guardar
 
-def save_detection_to_csv(model_name, detections):
-    """Guarda los resultados de detección en un archivo CSV"""
-    current_time = datetime.datetime.now()
-    date_str = current_time.strftime('%Y-%m-%d')
-    time_str = current_time.strftime('%H:%M:%S')
+def generate_unique_number(used_set):
+    """Genera un número único de 5 dígitos que no se haya usado antes"""
+    while True:
+        number = random.randint(10000, 99999)
+        if number not in used_set:
+            used_set.add(number)
+            return number
+
+def generate_lote():
+    """Genera un nuevo código de lote único"""
+    global current_lote
+    current_lote = generate_unique_number(used_lote_numbers)
+    return current_lote
+
+def generate_id():
+    """Genera un nuevo código de ID único"""
+    global current_id
+    current_id = generate_unique_number(used_id_numbers)
+    return current_id
+
+def save_detections_to_csv():
+    """Guarda todas las detecciones del buffer al archivo CSV"""
+    global detections_buffer
+    
+    if not detections_buffer:
+        print("No hay detecciones para guardar")
+        return
+    
+    # Crear el archivo CSV con las cabeceras si no existe
+    file_exists = os.path.exists(csv_file_path)
     
     with open(csv_file_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         
-        if len(detections) == 0:
-            # No se detectaron objetos
-            writer.writerow([date_str, time_str, model_name, 'no detections', 0.0])
-        else:
-            # Guardar cada detección con su clase y confianza
-            for det in detections:
-                class_name = det[0]
-                confidence = det[1]
-                writer.writerow([date_str, time_str, model_name, class_name, confidence])
+        # Escribir cabeceras si el archivo es nuevo
+        if not file_exists:
+            writer.writerow(['Lote', 'ID', 'Fecha', 'Hora', 'Modelo', 'Tipo_Deteccion', 'Confianza'])
+        
+        # Escribir todas las detecciones del buffer
+        for detection in detections_buffer:
+            writer.writerow(detection)
+    
+    print(f"Guardadas {len(detections_buffer)} detecciones en {csv_file_path}")
+    # Limpiar el buffer después de guardar
+    detections_buffer = []
+
+def add_detection_to_buffer(model_name, detections):
+    """Añade los resultados de detección al buffer en memoria"""
+    global detections_buffer, current_lote, current_id
+    
+    current_time = datetime.datetime.now()
+    date_str = current_time.strftime('%Y-%m-%d')
+    time_str = current_time.strftime('%H:%M:%S')
+    
+    if len(detections) == 0:
+        # No se detectaron objetos
+        detections_buffer.append([current_lote, current_id, date_str, time_str, model_name, 'no detections', 0.0])
+    else:
+        # Guardar cada detección con su clase y confianza
+        for det in detections:
+            class_name = det[0]
+            confidence = det[1]
+            detections_buffer.append([current_lote, current_id, date_str, time_str, model_name, class_name, confidence])
 
 def init_camera():
     global camera
@@ -96,8 +141,8 @@ def process_results(results, model_name):
             class_name = results[0].names[class_id]
             detections.append((class_name, confidence))
     
-    # Guardar en CSV
-    save_detection_to_csv(model_name, detections)
+    # Añadir al buffer en lugar de guardar directamente
+    add_detection_to_buffer(model_name, detections)
     
     return detections
 
@@ -107,7 +152,6 @@ def generate_frames_thread():
     try:
         model_stage = 0
         print("Iniciando el thread de generación de frames.")
-        init_csv()  # Inicializar CSV al comenzar
 
         while camera_running:
             if not camera or not camera.isOpened():
@@ -165,7 +209,7 @@ def generate_frames_thread():
                     elif model_stage == 3:
                         modelo_nombre = "defectos.pt"
                     
-                    # Procesar resultados y guardar en CSV
+                    # Procesar resultados y añadir al buffer
                     detections = process_results(results, modelo_nombre)
                     
                     annotated_frame = results[0].plot()
@@ -179,6 +223,10 @@ def generate_frames_thread():
                         modelo_texto = "Modelo: defectos.pt"
 
                     tiempo_restante = 5 - elapsed_time if model_stage in [1, 2, 3] else 0
+                    
+                    # Mostrar información del lote y ID en el frame
+                    cv2.putText(annotated_frame, f"Lote: {current_lote} | ID: {current_id}",
+                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
                     cv2.putText(annotated_frame, f"{modelo_texto} - Tiempo restante: {tiempo_restante:.1f}s",
                                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
@@ -226,7 +274,7 @@ def video_feed():
 
 @app.route('/start_camera')
 def start_camera():
-    global camera, camera_running, model_stage, current_model, detection_thread
+    global camera, camera_running, model_stage, current_model, detection_thread, current_lote, current_id
     try:
         if camera_running:
             return jsonify({"status": "warning", "message": "La cámara ya está en funcionamiento"})
@@ -238,12 +286,26 @@ def start_camera():
         if camera is None:
             return jsonify({"status": "error", "message": "No se pudo inicializar la cámara"})
         
+        # Generar códigos: nuevo lote si no existe, siempre nuevo ID
+        if current_lote is None:
+            generate_lote()
+            print(f"Nuevo lote generado: {current_lote}")
+        
+        generate_id()
+        print(f"Nuevo ID generado: {current_id}")
+        
         camera_running = True
         model_stage = 0
         current_model = None
         detection_thread = threading.Thread(target=generate_frames_thread)
         detection_thread.start()
-        return jsonify({"status": "success", "message": "Cámara iniciada"})
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Cámara iniciada",
+            "lote": current_lote,
+            "id": current_id
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al iniciar la cámara: {str(e)}"})
 
@@ -253,12 +315,36 @@ def stop_camera():
     release_camera()  # Luego liberamos la cámara
     return jsonify({"status": "success", "message": "Cámara detenida"})
 
+@app.route('/stop_and_save')
+def stop_and_save():
+    global current_lote
+    try:
+        # Detener la cámara
+        stop_detection()
+        release_camera()
+        
+        # Guardar las detecciones en CSV
+        save_detections_to_csv()
+        
+        # Resetear el lote para la próxima sesión
+        current_lote = None
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Detecciones guardadas exitosamente. Total de registros guardados: {len(detections_buffer) if detections_buffer else 0}"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error al guardar: {str(e)}"})
+
 @app.route('/camera_status')
 def camera_status():
-    global camera_running, model_stage
+    global camera_running, model_stage, current_lote, current_id
     return jsonify({
         "running": camera_running,
-        "model_stage": model_stage
+        "model_stage": model_stage,
+        "lote": current_lote,
+        "id": current_id,
+        "detections_count": len(detections_buffer)
     })
 
 if __name__ == '__main__':

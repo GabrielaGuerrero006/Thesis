@@ -42,6 +42,13 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -49,12 +56,29 @@
         <h1 class="text-3xl font-bold text-center mb-8">Detector de Mangos Exportables</h1>
 
         <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <div class="flex justify-center mb-6">
-                <button id="startCamera" class="bg-green-500 text-white px-6 py-2 rounded-lg mr-4 hover:bg-green-600 transition-colors duration-200">
-                    Iniciar Cámara
+            <!-- Información de Lote e ID -->
+            <div id="sessionInfo" class="info-box hidden">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p><strong>Lote:</strong> <span id="currentLote">-</span></p>
+                        <p><strong>ID:</strong> <span id="currentId">-</span></p>
+                    </div>
+                    <div class="text-right">
+                        <p><strong>Detecciones en memoria:</strong> <span id="detectionsCount">0</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de control -->
+            <div class="flex justify-center mb-6 space-x-4">
+                <button id="startCamera" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200">
+                    Iniciar
                 </button>
                 <button id="stopCamera" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200" disabled>
                     Detener Cámara
+                </button>
+                <button id="stopAndSave" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200" disabled>
+                    Detener y Guardar
                 </button>
             </div>
 
@@ -65,7 +89,7 @@
             <div class="video-container rounded-lg">
                 <img id="videoFeed" src="" alt="Video Feed" class="w-full h-full object-contain hidden">
                 <div id="placeholder" class="absolute inset-0 flex items-center justify-center text-white">
-                    <p>Presiona "Iniciar Cámara" para comenzar</p>
+                    <p>Presiona "Iniciar" para comenzar</p>
                 </div>
                 <div id="errorOverlay" class="error-overlay">
                     <div class="spinner"></div>
@@ -73,6 +97,13 @@
                     <button id="retryButton" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hidden">
                         Reintentar
                     </button>
+                </div>
+            </div>
+
+            <!-- Área de mensajes -->
+            <div id="messageArea" class="mt-4 hidden">
+                <div id="messageBox" class="p-4 rounded-lg">
+                    <p id="messageText"></p>
                 </div>
             </div>
         </div>
@@ -85,6 +116,26 @@
             let reconnectAttempts = 0;
             const MAX_RECONNECT_ATTEMPTS = 3;
             let videoFeed = document.getElementById('videoFeed');
+
+            function showMessage(message, type = 'info') {
+                $('#messageArea').removeClass('hidden');
+                $('#messageBox').removeClass('bg-green-100 bg-red-100 bg-blue-100 text-green-700 text-red-700 text-blue-700');
+                
+                if (type === 'success') {
+                    $('#messageBox').addClass('bg-green-100 text-green-700');
+                } else if (type === 'error') {
+                    $('#messageBox').addClass('bg-red-100 text-red-700');
+                } else {
+                    $('#messageBox').addClass('bg-blue-100 text-blue-700');
+                }
+                
+                $('#messageText').text(message);
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    $('#messageArea').addClass('hidden');
+                }, 5000);
+            }
 
             function showError(message, showRetry = true) {
                 $('#errorOverlay').show();
@@ -107,9 +158,20 @@
                 $('#placeholder').removeClass('hidden');
                 $('#startCamera').prop('disabled', false);
                 $('#stopCamera').prop('disabled', true);
+                $('#stopAndSave').prop('disabled', true);
                 $('#statusDisplay').addClass('hidden');
+                $('#sessionInfo').addClass('hidden');
                 hideError();
                 clearInterval(statusCheckInterval);
+            }
+
+            function updateSessionInfo(data) {
+                if (data.lote && data.id) {
+                    $('#currentLote').text(data.lote);
+                    $('#currentId').text(data.id);
+                    $('#detectionsCount').text(data.detections_count || 0);
+                    $('#sessionInfo').removeClass('hidden');
+                }
             }
 
             function handleVideoError() {
@@ -141,6 +203,8 @@
 
                         if (data.running) {
                             hideError();
+                            updateSessionInfo(data);
+                            
                             let statusText = "";
                             if (data.model_stage === 1) {
                                 statusText = "Ejecutando modelo exportabilidad.pt (detección de mangos)";
@@ -174,7 +238,13 @@
                             $('#placeholder').addClass('hidden');
                             $('#startCamera').prop('disabled', true);
                             $('#stopCamera').prop('disabled', false);
+                            $('#stopAndSave').prop('disabled', false);
+                            
+                            // Mostrar información de la sesión
+                            updateSessionInfo(data);
+                            
                             statusCheckInterval = setInterval(checkCameraStatus, 500);
+                            showMessage(`Sesión iniciada - Lote: ${data.lote}, ID: ${data.id}`, 'info');
                         } else {
                             showError(data.message || 'Error al iniciar la cámara', true);
                         }
@@ -189,10 +259,32 @@
                     .done(function(data) {
                         if (data.status === 'success') {
                             resetVideo();
+                            showMessage('Cámara detenida sin guardar', 'info');
                         }
                     })
                     .fail(function() {
                         showError('Error al detener la cámara', true);
+                    });
+            });
+
+            $('#stopAndSave').click(function() {
+                // Mostrar loading
+                $(this).prop('disabled', true).text('Guardando...');
+                
+                $.get('/stop_and_save')
+                    .done(function(data) {
+                        if (data.status === 'success') {
+                            resetVideo();
+                            showMessage(data.message, 'success');
+                        } else {
+                            showMessage(data.message || 'Error al guardar', 'error');
+                        }
+                    })
+                    .fail(function() {
+                        showMessage('Error al conectar con el servidor para guardar', 'error');
+                    })
+                    .always(function() {
+                        $('#stopAndSave').prop('disabled', false).text('Detener y Guardar');
                     });
             });
 
