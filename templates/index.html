@@ -77,8 +77,8 @@
                 <button id="stopCamera" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200" disabled>
                     Detener Cámara
                 </button>
-                <button id="stopAndSave" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200" disabled>
-                    Detener y Guardar
+                <button id="saveDetections" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200" disabled>
+                    Guardar
                 </button>
             </div>
 
@@ -158,11 +158,19 @@
                 $('#placeholder').removeClass('hidden');
                 $('#startCamera').prop('disabled', false);
                 $('#stopCamera').prop('disabled', true);
-                $('#stopAndSave').prop('disabled', true);
+                // No deshabilitar el botón Guardar aquí
                 $('#statusDisplay').addClass('hidden');
-                $('#sessionInfo').addClass('hidden');
                 hideError();
                 clearInterval(statusCheckInterval);
+            }
+
+            function updateButtonStates(data) {
+                // Habilitar el botón Guardar si hay detecciones en el buffer
+                if (data.detections_count && data.detections_count > 0) {
+                    $('#saveDetections').prop('disabled', false);
+                } else {
+                    $('#saveDetections').prop('disabled', true);
+                }
             }
 
             function updateSessionInfo(data) {
@@ -172,6 +180,9 @@
                     $('#detectionsCount').text(data.detections_count || 0);
                     $('#sessionInfo').removeClass('hidden');
                 }
+                
+                // Actualizar estado de botones
+                updateButtonStates(data);
             }
 
             function handleVideoError() {
@@ -201,9 +212,11 @@
                             resetVideo();
                         }
 
+                        // Siempre actualizar la información de sesión y botones
+                        updateSessionInfo(data);
+
                         if (data.running) {
                             hideError();
-                            updateSessionInfo(data);
                             
                             let statusText = "";
                             if (data.model_stage === 1) {
@@ -238,7 +251,6 @@
                             $('#placeholder').addClass('hidden');
                             $('#startCamera').prop('disabled', true);
                             $('#stopCamera').prop('disabled', false);
-                            $('#stopAndSave').prop('disabled', false);
                             
                             // Mostrar información de la sesión
                             updateSessionInfo(data);
@@ -267,24 +279,27 @@
                     });
             });
 
-            $('#stopAndSave').click(function() {
+            $('#saveDetections').click(function() {
                 // Mostrar loading
                 $(this).prop('disabled', true).text('Guardando...');
                 
-                $.get('/stop_and_save')
+                $.get('/save_detections')
                     .done(function(data) {
                         if (data.status === 'success') {
-                            resetVideo();
                             showMessage(data.message, 'success');
+                            // Ocultar información de sesión después de guardar
+                            $('#sessionInfo').addClass('hidden');
+                            // Actualizar contador
+                            $('#detectionsCount').text('0');
                         } else {
-                            showMessage(data.message || 'Error al guardar', 'error');
+                            showMessage(data.message || 'Error al guardar', data.status === 'warning' ? 'info' : 'error');
                         }
                     })
                     .fail(function() {
                         showMessage('Error al conectar con el servidor para guardar', 'error');
                     })
                     .always(function() {
-                        $('#stopAndSave').prop('disabled', false).text('Detener y Guardar');
+                        $('#saveDetections').prop('disabled', true).text('Guardar');
                     });
             });
 
@@ -293,6 +308,17 @@
                 hideError();
                 $('#startCamera').click();
             });
+
+            // Verificar estado inicial al cargar la página
+            checkCameraStatus();
+            setInterval(function() {
+                if (!isRunning) {
+                    // Verificar periódicamente el estado incluso cuando no esté corriendo
+                    $.get('/camera_status').done(function(data) {
+                        updateSessionInfo(data);
+                    });
+                }
+            }, 2000);
         });
     </script>
 </body>

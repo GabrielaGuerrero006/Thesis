@@ -315,13 +315,15 @@ def stop_camera():
     release_camera()  # Luego liberamos la cámara
     return jsonify({"status": "success", "message": "Cámara detenida"})
 
-@app.route('/stop_and_save')
-def stop_and_save():
-    global current_lote
+@app.route('/save_detections')
+def save_detections():
+    global current_lote, detections_buffer
     try:
-        # Detener la cámara
-        stop_detection()
-        release_camera()
+        if not detections_buffer:
+            return jsonify({"status": "warning", "message": "No hay detecciones para guardar"})
+        
+        # Contar detecciones antes de guardar
+        detections_count = len(detections_buffer)
         
         # Guardar las detecciones en CSV
         save_detections_to_csv()
@@ -331,7 +333,7 @@ def stop_and_save():
         
         return jsonify({
             "status": "success", 
-            "message": f"Detecciones guardadas exitosamente. Total de registros guardados: {len(detections_buffer) if detections_buffer else 0}"
+            "message": f"Detecciones guardadas exitosamente. Total de registros guardados: {detections_count}"
         })
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al guardar: {str(e)}"})
