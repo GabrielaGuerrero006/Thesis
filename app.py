@@ -8,6 +8,7 @@ import csv
 import os
 import datetime
 import random
+from process import obtener_numeros_lote
 
 app = Flask(__name__)
 
@@ -54,7 +55,13 @@ def get_csv_filename():
     global current_lote
     if current_lote is None:
         raise ValueError("No hay un lote activo para generar el nombre del archivo")
-    return f"Lote-{current_lote}.csv"
+    
+    # Asegurarse de que el directorio detections existe
+    if not os.path.exists('detections'):
+        os.makedirs('detections')
+    
+    # Retornar la ruta completa incluyendo el directorio detections
+    return os.path.join('detections', f"Lote-{current_lote}.csv")
 
 def save_detections_to_csv():
     """Guarda todas las detecciones del buffer al archivo CSV con nombre del lote"""
@@ -351,6 +358,8 @@ def save_detections():
         
         # Obtener el nombre del archivo que se va a crear
         csv_filename = get_csv_filename()
+        # Obtener solo el nombre del archivo sin la ruta
+        display_filename = os.path.basename(csv_filename)
         
         # Guardar las detecciones en CSV
         save_detections_to_csv()
@@ -360,8 +369,8 @@ def save_detections():
         
         return jsonify({
             "status": "success", 
-            "message": f"Detecciones guardadas exitosamente en '{csv_filename}'. Total de registros: {detections_count}",
-            "filename": csv_filename
+            "message": f"Detecciones guardadas exitosamente en '{display_filename}'. Total de registros: {detections_count}",
+            "filename": display_filename
         })
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error al guardar: {str(e)}"})
@@ -376,6 +385,14 @@ def camera_status():
         "id": current_id,
         "detections_count": len(detections_buffer)
     })
+
+@app.route('/obtener_lotes')
+def obtener_lotes():
+    try:
+        lotes = obtener_numeros_lote()
+        return jsonify({"status": "success", "lotes": lotes})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
