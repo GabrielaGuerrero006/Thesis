@@ -1,80 +1,42 @@
-import pandas as pd
-import os
-import glob
-import re
+from database import get_lote_data, get_lotes, get_ids_for_lote
 
-def cargar_lote(numero_lote, directorio='detections'):
+def cargar_lote(numero_lote, directorio=None):
     """
-    Carga los datos de un lote específico desde su archivo CSV.
+    Carga los datos de un lote específico desde la base de datos.
     
     Args:
         numero_lote (str): Número del lote a cargar (ej: "95383")
-        directorio (str): Ruta al directorio que contiene los archivos CSV de lotes.
-                         Por defecto es 'detections'
+        directorio (str): Parámetro mantenido por compatibilidad, no se utiliza
     
     Returns:
         pandas.DataFrame: DataFrame con los datos del lote específico
-        None: Si no se encuentra el archivo o hay un error al cargarlo
+        None: Si hay un error al cargar el lote
     """
     try:
-        # Construir la ruta del archivo
-        ruta_absoluta = os.path.abspath(directorio)
-        nombre_archivo = f"Lote-{numero_lote}.csv"
-        ruta_completa = os.path.join(ruta_absoluta, nombre_archivo)
-        
-        # Verificar si el archivo existe
-        if not os.path.exists(ruta_completa):
-            print(f"No se encontró el archivo para el lote {numero_lote}")
-            return None
-            
-        # Cargar el archivo
-        return pd.read_csv(ruta_completa)
-        
+        return get_lote_data(numero_lote)
     except Exception as e:
         print(f"Error al cargar el lote {numero_lote}: {e}")
         return None
-    
-def obtener_numeros_lote(directorio='detections'):
+
+def obtener_numeros_lote(directorio=None):
     """
-    Obtiene solo los números de lote de los archivos CSV en el directorio especificado.
+    Obtiene solo los números de lote de la base de datos.
     
     Args:
-        directorio (str): Ruta al directorio que contiene los archivos CSV de lotes.
-                         Por defecto es 'detections'
+        directorio (str): Parámetro mantenido por compatibilidad, no se utiliza
         
     Returns:
         list: Lista con los números de lote encontrados
     """
-    # Obtener la ruta absoluta del directorio
-    ruta_absoluta = os.path.abspath(directorio)
-    
-    # Buscar todos los archivos CSV en el directorio
-    patron_busqueda = os.path.join(ruta_absoluta, '*.csv')
-    archivos_csv = glob.glob(patron_busqueda)
-    
-    # Lista para almacenar los números de lote
-    numeros_lote = []
-    
-    # Patrón para extraer el número de lote del nombre del archivo
-    patron_lote = re.compile(r'Lote-(\d+)\.csv')
-    
-    for archivo in archivos_csv:
-        nombre_archivo = os.path.basename(archivo)
-        match = patron_lote.match(nombre_archivo)
-        if match:
-            numero_lote = match.group(1)
-            numeros_lote.append(numero_lote)
-    
-    return sorted(numeros_lote)
+    return get_lotes()
 
-def obtener_ids_unicos(numero_lote, directorio='detections'):
+def obtener_ids_unicos(numero_lote, directorio=None):
     """
     Obtiene la cantidad y lista de IDs únicos para un lote específico.
     
     Args:
         numero_lote (str): Número del lote a analizar (ej: "95383")
-        directorio (str): Ruta al directorio que contiene los archivos CSV de lotes.
-                         Por defecto es 'detections'
+        directorio (str): Parámetro mantenido por compatibilidad, no se utiliza
     
     Returns:
         tuple: (cantidad_ids, lista_ids)
@@ -82,12 +44,8 @@ def obtener_ids_unicos(numero_lote, directorio='detections'):
             - lista_ids (list): Lista con todos los IDs únicos
         None: Si hay error al cargar el lote
     """
-    # Usar la función cargar_lote para obtener los datos
-    df = cargar_lote(numero_lote, directorio)
-    
-    if df is not None:
-        # Obtener IDs únicos
-        ids_unicos = df['ID'].unique()
-        return len(ids_unicos), ids_unicos.tolist()
-    
-    return None, None
+    try:
+        return get_ids_for_lote(numero_lote)
+    except Exception as e:
+        print(f"Error al obtener IDs únicos para el lote {numero_lote}: {e}")
+        return None, None

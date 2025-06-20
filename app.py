@@ -1,14 +1,18 @@
 # app.py
 from flask import Flask, render_template, Response, jsonify
 from ultralytics import YOLO
-import cv2
-import threading
-import time
-import csv
-import os
-import datetime
-import random
 from process import obtener_numeros_lote
+import os
+import cv2
+import time
+import random
+import datetime
+import threading
+import sqlite3
+from database import init_db, save_detections_db
+
+# Inicializar la base de datos al inicio
+init_db()
 
 app = Flask(__name__)
 
@@ -50,21 +54,10 @@ def generate_id():
     current_id = generate_unique_number(used_id_numbers)
     return current_id
 
-def get_csv_filename():
-    """Genera el nombre del archivo CSV basado en el lote actual"""
-    global current_lote
-    if current_lote is None:
-        raise ValueError("No hay un lote activo para generar el nombre del archivo")
-    
-    # Asegurarse de que el directorio detections existe
-    if not os.path.exists('detections'):
-        os.makedirs('detections')
-    
-    # Retornar la ruta completa incluyendo el directorio detections
-    return os.path.join('detections', f"Lote-{current_lote}.csv")
 
-def save_detections_to_csv():
-    """Guarda todas las detecciones del buffer al archivo CSV con nombre del lote"""
+
+def save_detections_to_db():
+    """Guarda todas las detecciones del buffer a la base de datos"""
     global detections_buffer, current_lote
     
     if not detections_buffer:
@@ -74,26 +67,13 @@ def save_detections_to_csv():
     if current_lote is None:
         raise ValueError("No hay un lote activo para guardar las detecciones")
     
-    # Generar nombre del archivo con el lote
-    csv_file_path = get_csv_filename()
-    
-    # Crear el archivo CSV con las cabeceras si no existe
-    file_exists = os.path.exists(csv_file_path)
-    
-    with open(csv_file_path, 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        
-        # Escribir cabeceras si el archivo es nuevo
-        if not file_exists:
-            writer.writerow(['Lote', 'ID', 'Fecha', 'Hora', 'Modelo', 'Tipo_Deteccion', 'Confianza'])
-        
-        # Escribir todas las detecciones del buffer
-        for detection in detections_buffer:
-            writer.writerow(detection)
-    
-    print(f"Guardadas {len(detections_buffer)} detecciones en {csv_file_path}")
-    # Limpiar el buffer después de guardar
-    detections_buffer = []
+    try:
+        save_detections_db(detections_buffer)
+        print(f"Guardadas {len(detections_buffer)} detecciones en la base de datos")
+        detections_buffer = []
+    except Exception as e:
+        print(f"Error al guardar las detecciones: {e}")
+        raise
 
 def add_detection_to_buffer(model_name, detections):
     """Añade los resultados de detección al buffer en memoria"""
@@ -118,7 +98,7 @@ def init_camera():
     try:
         if camera is not None:
             camera.release()
-        camera = cv2.VideoCapture(0)
+        camera = cv2.VideoCapture(1)
         if not camera.isOpened():
             raise Exception("No se pudo abrir la cámara")
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -348,32 +328,36 @@ def save_detections():
     global current_lote, detections_buffer
     try:
         if not detections_buffer:
-            return jsonify({"status": "warning", "message": "No hay detecciones para guardar"})
+            return jsonify({
+                "status": "error",
+                "message": "No hay detecciones para guardar"
+            })
         
         if current_lote is None:
-            return jsonify({"status": "error", "message": "No hay un lote activo para guardar"})
+            return jsonify({
+                "status": "error",
+                "message": "No hay un lote activo"
+            })
         
         # Contar detecciones antes de guardar
         detections_count = len(detections_buffer)
         
-        # Obtener el nombre del archivo que se va a crear
-        csv_filename = get_csv_filename()
-        # Obtener solo el nombre del archivo sin la ruta
-        display_filename = os.path.basename(csv_filename)
-        
-        # Guardar las detecciones en CSV
-        save_detections_to_csv()
+        # Guardar las detecciones en la base de datos
+        save_detections_to_db()
         
         # Resetear el lote para la próxima sesión
         current_lote = None
         
         return jsonify({
-            "status": "success", 
-            "message": f"Detecciones guardadas exitosamente en '{display_filename}'. Total de registros: {detections_count}",
-            "filename": display_filename
+            "status": "success",
+            "message": f"Se han guardado {detections_count} detecciones exitosamente"
         })
+        
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Error al guardar: {str(e)}"})
+        return jsonify({
+            "status": "error",
+            "message": f"Error al guardar las detecciones: {str(e)}"
+        })
 
 @app.route('/camera_status')
 def camera_status():
