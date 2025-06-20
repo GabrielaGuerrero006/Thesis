@@ -1,2 +1,4 @@
 *.pt
 *.csv
+*.db
+__pycache__/
