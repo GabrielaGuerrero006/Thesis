@@ -1,7 +1,6 @@
 # app.py
 from flask import Flask, render_template, Response, jsonify
 from ultralytics import YOLO
-from process import obtener_numeros_lote
 import os
 import cv2
 import time
@@ -9,7 +8,17 @@ import random
 import datetime
 import threading
 import sqlite3
-from database import init_db, save_detections_db
+from database import (
+    init_db, save_detections_db, get_lotes, get_ids_lote,
+    get_num_mangos_procesados, get_num_detecciones_lote, get_num_exportables_no_exportables,
+    get_num_verdes_maduros, get_num_con_defectos_sin_defectos, get_fecha_procesado_lote,
+    get_confianza_promedio_lote, get_confianza_promedio_exportabilidad, get_confianza_promedio_madurez,
+    get_confianza_promedio_defectos, get_cantidad_mangos_exportables_lote, get_cantidad_mangos_no_exportables_lote,
+    get_cantidad_mangos_verdes_lote, get_cantidad_mangos_maduros_lote, get_cantidad_mangos_con_defecto_lote,
+    get_cantidad_mangos_sin_defecto_lote, get_porcentaje_mangos_exportables_lote, get_porcentaje_mangos_no_exportables_lote,
+    get_porcentaje_mangos_verdes_lote, get_porcentaje_mangos_maduros_lote, get_porcentaje_mangos_con_defecto_lote,
+    get_porcentaje_mangos_sin_defecto_lote
+)
 
 # Inicializar la base de datos al inicio
 init_db()
@@ -98,7 +107,7 @@ def init_camera():
     try:
         if camera is not None:
             camera.release()
-        camera = cv2.VideoCapture(1)
+        camera = cv2.VideoCapture(0)
         if not camera.isOpened():
             raise Exception("No se pudo abrir la cámara")
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -373,8 +382,52 @@ def camera_status():
 @app.route('/obtener_lotes')
 def obtener_lotes():
     try:
-        lotes = obtener_numeros_lote()
+        lotes = get_lotes()
         return jsonify({"status": "success", "lotes": lotes})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/obtener_ids_lote/<lote_number>')
+def obtener_ids_lote(lote_number):
+    try:
+        ids = get_ids_lote(lote_number)
+        return jsonify({"status": "success", "ids": ids})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/obtener_datos_lote/<lote_number>')
+def obtener_datos_lote(lote_number):
+    try:
+        datos = {}
+        datos["Numero de mangos en el lote"] = get_num_mangos_procesados(lote_number)
+        datos["Numero de detecciones del lote"] = get_num_detecciones_lote(lote_number)
+        exportables = get_num_exportables_no_exportables(lote_number)
+        datos["Numero de detecciones de mango exportable"] = exportables['exportable']
+        datos["Numero de detecciones de mango no_exportable"] = exportables['no_exportable']
+        maduros_verdes = get_num_verdes_maduros(lote_number)
+        datos["Numero de detecciones de mango maduro"] = maduros_verdes['mango_maduro']
+        datos["Numero de detecciones de mango verde"] = maduros_verdes['mango_verde']
+        defectos = get_num_con_defectos_sin_defectos(lote_number)
+        datos["Numero de detecciones de mango con_defectos"] = defectos['mango_con_defectos']
+        datos["Numero de detecciones de mango sin_defectos"] = defectos['mango_sin_defectos']
+        datos["Fecha del lote"] = get_fecha_procesado_lote(lote_number)
+        datos["Porcentaje de confianza promedio de todos los modelos del lote"] = f"{get_confianza_promedio_lote(lote_number)}%"
+        datos["Porcentaje de confianza promedio del modelo exportabilidad"] = f"{get_confianza_promedio_exportabilidad(lote_number)}%"
+        datos["Porcentaje de confianza promedio del modelo madurez"] = f"{get_confianza_promedio_madurez(lote_number)}%"
+        datos["Porcentaje de confianza promedio del modelo defectos"] = f"{get_confianza_promedio_defectos(lote_number)}%"
+        datos["Cantidad de mangos exportables del lote"] = get_cantidad_mangos_exportables_lote(lote_number)
+        datos["Cantidad de mangos no exportables del lote"] = get_cantidad_mangos_no_exportables_lote(lote_number)
+        datos["Cantidad de mangos verdes del lote"] = get_cantidad_mangos_verdes_lote(lote_number)
+        datos["Cantidad de mangos maduros del lote"] = get_cantidad_mangos_maduros_lote(lote_number)
+        datos["Cantidad de mangos con defectos del lote"] = get_cantidad_mangos_con_defecto_lote(lote_number)
+        datos["Cantidad de mangos sin defectos del lote"] = get_cantidad_mangos_sin_defecto_lote(lote_number)
+        datos["Porcentaje de mangos exportables del lote"] = f"{get_porcentaje_mangos_exportables_lote(lote_number)}%"
+        datos["Porcentaje de mangos no exportables del lote"] = f"{get_porcentaje_mangos_no_exportables_lote(lote_number)}%"
+        datos["Porcentaje de mangos verdes del lote"] = f"{get_porcentaje_mangos_verdes_lote(lote_number)}%"
+        datos["Porcentaje de mangos maduros del lote"] = f"{get_porcentaje_mangos_maduros_lote(lote_number)}%"
+        datos["Porcentaje de mangos con defectos del lote"] = f"{get_porcentaje_mangos_con_defecto_lote(lote_number)}%"
+        datos["Porcentaje de mangos sin defectos del lote"] = f"{get_porcentaje_mangos_sin_defecto_lote(lote_number)}%"
+        return jsonify({"status": "success", "datos": datos})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

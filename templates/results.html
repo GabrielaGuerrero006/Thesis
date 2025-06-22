@@ -42,13 +42,35 @@
             <select id="lotesDropdown" class="form-select mb-3">
                 <option value="" selected disabled>Seleccione un lote...</option>
             </select>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" value="" id="analisisProfundidad">
+                <label class="form-check-label" for="analisisProfundidad">
+                    Análisis en Profundidad
+                </label>
+            </div>
+            <div id="idDropdownContainer" style="display:none;">
+                <select id="idDropdown" class="form-select mb-3">
+                    <option value="" selected disabled>Seleccione el ID...</option>
+                </select>
+            </div>
         </div>
 
         <div class="button-container">
-            <button id="cargarLotes" class="btn btn-primary">Cargar Lotes</button>
-            <button id="boton2" class="btn btn-secondary">Botón 2</button>
-            <button id="boton3" class="btn btn-secondary">Botón 3</button>
-            <button id="boton4" class="btn btn-secondary">Botón 4</button>
+            <button id="cargarLotes" class="btn btn-primary">Actualizar Lotes</button>
+            <button id="actualizarIDs" class="btn btn-info">Actualizar IDs</button>
+            <button id="boton2" class="btn btn-secondary">Obtener Datos</button>
+        </div>
+        <div id="tablaResultadosContainer" style="display:none; margin-top:2rem;">
+            <table id="tablaResultados" class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -75,7 +97,84 @@
                     }
                 });
             });
+
+            // Mostrar/ocultar el dropdown de ID según el checkbox
+            $('#analisisProfundidad').change(function() {
+                if ($(this).is(':checked')) {
+                    $('#idDropdownContainer').show();
+                } else {
+                    $('#idDropdownContainer').hide();
+                }
+            });
+
+            // Funcionalidad para el botón Actualizar IDs
+            $('#actualizarIDs').click(function() {
+                // Solo ejecutar si el checkbox está marcado y el dropdown de IDs es visible
+                if ($('#analisisProfundidad').is(':checked') && $('#idDropdownContainer').is(':visible')) {
+                    const loteSeleccionado = $('#lotesDropdown').val();
+                    if (!loteSeleccionado) {
+                        alert('Seleccione un lote antes de actualizar los IDs.');
+                        return;
+                    }
+                    $.ajax({
+                        url: `/obtener_ids_lote/${loteSeleccionado}`,
+                        method: 'GET',
+                        success: function(response) {
+                            const idDropdown = $('#idDropdown');
+                            idDropdown.empty();
+                            idDropdown.append('<option value="" selected disabled>Seleccione el ID...</option>');
+                            if (response.status === 'success') {
+                                response.ids.forEach(function(id) {
+                                    idDropdown.append(`<option value="${id}">${id}</option>`);
+                                });
+                            } else {
+                                alert('No se pudieron obtener los IDs: ' + response.message);
+                            }
+                        },
+                        error: function(error) {
+                            console.error('Error al cargar los IDs:', error);
+                            alert('Error al cargar los IDs. Por favor, intente nuevamente.');
+                        }
+                    });
+                }
+            });
+
+            // Funcionalidad para el botón Obtener Datos
+            $('#boton2').click(function() {
+                const loteSeleccionado = $('#lotesDropdown').val();
+                if (!loteSeleccionado) {
+                    alert('Seleccione un lote antes de obtener los datos.');
+                    return;
+                }
+                // Ocultar la tabla mientras se cargan los datos
+                $('#tablaResultadosContainer').hide();
+                $.ajax({
+                    url: `/obtener_datos_lote/${loteSeleccionado}`,
+                    method: 'GET',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            const tbody = $('#tablaResultados tbody');
+                            tbody.empty();
+                            Object.entries(response.datos).forEach(function([nombre, valor]) {
+                                tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                            });
+                            $('#tablaResultadosContainer').show();
+                        } else {
+                            alert('No se pudieron obtener los datos: ' + response.message);
+                        }
+                    },
+                    error: function(error) {
+                        console.error('Error al obtener los datos:', error);
+                        alert('Error al obtener los datos. Por favor, intente nuevamente.');
+                    }
+                });
+            });
+
+            // Si el usuario cambia de lote, ocultar la tabla hasta que vuelva a presionar el botón
+            $('#lotesDropdown').change(function() {
+                $('#tablaResultadosContainer').hide();
+            });
         });
     </script>
 </body>
-</html> 
+</html>
