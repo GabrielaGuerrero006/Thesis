@@ -72,6 +72,19 @@
                 </tbody>
             </table>
         </div>
+        <!-- Segunda tabla para análisis por ID -->
+        <div id="tablaResultadosIDContainer" style="display:none; margin-top:2rem;">
+            <table id="tablaResultadosID" class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -142,37 +155,71 @@
             // Funcionalidad para el botón Obtener Datos
             $('#boton2').click(function() {
                 const loteSeleccionado = $('#lotesDropdown').val();
-                if (!loteSeleccionado) {
-                    alert('Seleccione un lote antes de obtener los datos.');
-                    return;
-                }
-                // Ocultar la tabla mientras se cargan los datos
+                const analisisProfundidad = $('#analisisProfundidad').is(':checked');
+                const idDropdownVisible = $('#idDropdownContainer').is(':visible');
+                const idSeleccionado = $('#idDropdown').val();
+
+                // Ocultar ambas tablas antes de mostrar resultados
                 $('#tablaResultadosContainer').hide();
-                $.ajax({
-                    url: `/obtener_datos_lote/${loteSeleccionado}`,
-                    method: 'GET',
-                    success: function(response) {
-                        if (response.status === 'success') {
-                            const tbody = $('#tablaResultados tbody');
-                            tbody.empty();
-                            Object.entries(response.datos).forEach(function([nombre, valor]) {
-                                tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
-                            });
-                            $('#tablaResultadosContainer').show();
-                        } else {
-                            alert('No se pudieron obtener los datos: ' + response.message);
+                $('#tablaResultadosIDContainer').hide();
+
+                if (analisisProfundidad && idDropdownVisible && loteSeleccionado && idSeleccionado) {
+                    // Análisis por ID
+                    $.ajax({
+                        url: `/obtener_datos_mango/${loteSeleccionado}/${idSeleccionado}`,
+                        method: 'GET',
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                const tbody = $('#tablaResultadosID tbody');
+                                tbody.empty();
+                                Object.entries(response.datos).forEach(function([nombre, valor]) {
+                                    tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#tablaResultadosIDContainer').show();
+                            } else {
+                                alert('No se pudieron obtener los datos: ' + response.message);
+                            }
+                        },
+                        error: function(error) {
+                            console.error('Error al obtener los datos:', error);
+                            alert('Error al obtener los datos. Por favor, intente nuevamente.');
                         }
-                    },
-                    error: function(error) {
-                        console.error('Error al obtener los datos:', error);
-                        alert('Error al obtener los datos. Por favor, intente nuevamente.');
-                    }
-                });
+                    });
+                } else if (!analisisProfundidad && !idDropdownVisible && loteSeleccionado) {
+                    // Análisis por lote (funcionalidad actual)
+                    $.ajax({
+                        url: `/obtener_datos_lote/${loteSeleccionado}`,
+                        method: 'GET',
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                const tbody = $('#tablaResultados tbody');
+                                tbody.empty();
+                                Object.entries(response.datos).forEach(function([nombre, valor]) {
+                                    tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#tablaResultadosContainer').show();
+                            } else {
+                                alert('No se pudieron obtener los datos: ' + response.message);
+                            }
+                        },
+                        error: function(error) {
+                            console.error('Error al obtener los datos:', error);
+                            alert('Error al obtener los datos. Por favor, intente nuevamente.');
+                        }
+                    });
+                } else {
+                    alert('Seleccione correctamente el lote y el ID para el análisis en profundidad.');
+                }
             });
 
-            // Si el usuario cambia de lote, ocultar la tabla hasta que vuelva a presionar el botón
+            // Si el usuario cambia de lote, ocultar ambas tablas hasta que vuelva a presionar el botón
             $('#lotesDropdown').change(function() {
                 $('#tablaResultadosContainer').hide();
+                $('#tablaResultadosIDContainer').hide();
+            });
+            // Si el usuario cambia de ID, ocultar la tabla de ID
+            $('#idDropdown').change(function() {
+                $('#tablaResultadosIDContainer').hide();
             });
         });
     </script>

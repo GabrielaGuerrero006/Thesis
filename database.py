@@ -3,10 +3,12 @@ import os
 import pandas as pd
 from datetime import datetime
 
+#Ruta de la BD
 def get_db_path():
     """Retorna la ruta al archivo de la base de datos"""
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'detections.db')
 
+#Inicialización de la BD
 def init_db():
     """Inicializa la base de datos y crea las tablas necesarias si no existen"""
     conn = sqlite3.connect(get_db_path())
@@ -29,6 +31,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+#Guardado de las detecciones
 def save_detections_db(detections_list):
     """
     Guarda una lista de detecciones en la base de datos
@@ -62,6 +65,7 @@ def get_lotes():
     conn.close()
     return lotes
 
+#Funciones para lotes
 def get_num_mangos_procesados(lote_number):
     """
     Retorna el número de mangos procesados (IDs únicos) para un lote dado.
@@ -132,7 +136,7 @@ def get_num_con_defectos_sin_defectos(lote_number):
     Args:
         lote_number (str o int): Número de lote seleccionado por el usuario
     Returns:
-        dict: {'mango_con_defectos': int, 'mango_sin_defectos': int}
+        dict: _defectos': int, 'mango_sin_defectos': int}
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
@@ -412,3 +416,164 @@ def get_ids_lote(lote_number):
     ids = [row[0] for row in cursor.fetchall()]
     conn.close()
     return ids
+
+#Funciones para datos de forma unitaria
+def get_fecha_deteccion_lote_id(lote_number, item_id):
+    """
+    Retorna la fecha más antigua de detección para un lote y item_id dados.
+    Args:
+        lote_number (str o int): Número de lote seleccionado por el usuario
+        item_id (str o int): ID seleccionado por el usuario
+    Returns:
+        str: fecha (YYYY-MM-DD) más antigua o None si no hay registros
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('SELECT detection_date FROM detections WHERE lote_number = ? AND item_id = ? ORDER BY detection_date ASC LIMIT 1', (int(lote_number), int(item_id)))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def get_exportabilidad_mango(lote_number, item_id):
+    """
+    Determina la exportabilidad del mango para un lote y item_id dados según el modelo exportabilidad.pt.
+    Args:
+        lote_number (str o int): Número de lote seleccionado por el usuario
+        item_id (str o int): ID seleccionado por el usuario
+    Returns:
+        str: 'Exportable', 'No Exportable', 'Nulo' o 'Sin datos suficientes'
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'exportabilidad.pt'))
+    resultados = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if not resultados:
+        return 'Sin datos suficientes'
+    total = len(resultados)
+    exportable = sum(1 for r in resultados if r == 'exportable')
+    no_exportable = sum(1 for r in resultados if r == 'no_exportable')
+    nulo = sum(1 for r in resultados if r == 'no detections')
+    if exportable / total >= 0.8:
+        return 'Exportable'
+    elif no_exportable / total >= 0.8:
+        return 'No Exportable'
+    elif nulo / total >= 0.8:
+        return 'Nulo'
+    else:
+        return 'Sin datos suficientes'
+
+def get_madurez_mango(lote_number, item_id):
+    """
+    Determina la madurez del mango para un lote y item_id dados según el modelo madurez.pt.
+    Args:
+        lote_number (str o int): Número de lote seleccionado por el usuario
+        item_id (str o int): ID seleccionado por el usuario
+    Returns:
+        str: 'Verde', 'Maduro', 'Nulo' o 'Sin datos suficientes'
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'madurez.pt'))
+    resultados = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if not resultados:
+        return 'Sin datos suficientes'
+    total = len(resultados)
+    verde = sum(1 for r in resultados if r == 'mango_verde')
+    maduro = sum(1 for r in resultados if r == 'mango_maduro')
+    nulo = sum(1 for r in resultados if r == 'no detections')
+    if verde / total >= 0.8:
+        return 'Verde'
+    elif maduro / total >= 0.8:
+        return 'Maduro'
+    elif nulo / total >= 0.8:
+        return 'Nulo'
+    else:
+        return 'Sin datos suficientes'
+
+def get_defectos_mango(lote_number, item_id):
+    """
+    Determina si el mango tiene defectos para un lote y item_id dados según el modelo defectos.pt.
+    Args:
+        lote_number (str o int): Número de lote seleccionado por el usuario
+        item_id (str o int): ID seleccionado por el usuario
+    Returns:
+        str: 'No', 'Si', 'Nulo' o 'Sin datos suficientes'
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'defectos.pt'))
+    resultados = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if not resultados:
+        return 'Sin datos suficientes'
+    total = len(resultados)
+    sin_defectos = sum(1 for r in resultados if r == 'mango_sin_defecto')
+    con_defectos = sum(1 for r in resultados if r == 'mango_con_defectos')
+    nulo = sum(1 for r in resultados if r == 'no detections')
+    if sin_defectos / total >= 0.8:
+        return 'No'
+    elif con_defectos / total >= 0.8:
+        return 'Si'
+    elif nulo / total >= 0.8:
+        return 'Nulo'
+    else:
+        return 'Sin datos suficientes'
+
+def get_confianza_promedio_exportabilidad_mango(lote_number, item_id):
+    """
+    Retorna el porcentaje de confianza promedio del modelo exportabilidad para un mango específico (lote + item_id), ignorando valores de confianza igual a 0.
+    Args:
+        lote_number (str o int): Número de lote
+        item_id (str o int): ID del mango
+    Returns:
+        float: porcentaje de confianza promedio (ej: 93.37)
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('SELECT confidence FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ? AND confidence > 0', (int(lote_number), int(item_id), 'exportabilidad.pt'))
+    confidences = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if confidences:
+        avg = sum(confidences) / len(confidences)
+        return round(avg * 100, 2)
+    return 0.0
+
+def get_confianza_promedio_madurez_mango(lote_number, item_id):
+    """
+    Retorna el porcentaje de confianza promedio del modelo madurez para un mango específico (lote + item_id), ignorando valores de confianza igual a 0.
+    Args:
+        lote_number (str o int): Número de lote
+        item_id (str o int): ID del mango
+    Returns:
+        float: porcentaje de confianza promedio (ej: 93.37)
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('SELECT confidence FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ? AND confidence > 0', (int(lote_number), int(item_id), 'madurez.pt'))
+    confidences = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if confidences:
+        avg = sum(confidences) / len(confidences)
+        return round(avg * 100, 2)
+    return 0.0
+
+def get_confianza_promedio_defectos_mango(lote_number, item_id):
+    """
+    Retorna el porcentaje de confianza promedio del modelo defectos para un mango específico (lote + item_id), ignorando valores de confianza igual a 0.
+    Args:
+        lote_number (str o int): Número de lote
+        item_id (str o int): ID del mango
+    Returns:
+        float: porcentaje de confianza promedio (ej: 93.37)
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('SELECT confidence FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ? AND confidence > 0', (int(lote_number), int(item_id), 'defectos.pt'))
+    confidences = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    if confidences:
+        avg = sum(confidences) / len(confidences)
+        return round(avg * 100, 2)
+    return 0.0

@@ -17,7 +17,10 @@ from database import (
     get_cantidad_mangos_verdes_lote, get_cantidad_mangos_maduros_lote, get_cantidad_mangos_con_defecto_lote,
     get_cantidad_mangos_sin_defecto_lote, get_porcentaje_mangos_exportables_lote, get_porcentaje_mangos_no_exportables_lote,
     get_porcentaje_mangos_verdes_lote, get_porcentaje_mangos_maduros_lote, get_porcentaje_mangos_con_defecto_lote,
-    get_porcentaje_mangos_sin_defecto_lote
+    get_porcentaje_mangos_sin_defecto_lote, get_ids_lote,
+    # NUEVAS FUNCIONES PARA ANÁLISIS POR ID
+    get_fecha_deteccion_lote_id, get_exportabilidad_mango, get_madurez_mango, get_defectos_mango,
+    get_confianza_promedio_exportabilidad_mango, get_confianza_promedio_madurez_mango, get_confianza_promedio_defectos_mango
 )
 
 # Inicializar la base de datos al inicio
@@ -427,6 +430,69 @@ def obtener_datos_lote(lote_number):
         datos["Porcentaje de mangos maduros del lote"] = f"{get_porcentaje_mangos_maduros_lote(lote_number)}%"
         datos["Porcentaje de mangos con defectos del lote"] = f"{get_porcentaje_mangos_con_defecto_lote(lote_number)}%"
         datos["Porcentaje de mangos sin defectos del lote"] = f"{get_porcentaje_mangos_sin_defecto_lote(lote_number)}%"
+        return jsonify({"status": "success", "datos": datos})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/obtener_datos_por_id/<lote_number>/<id_number>')
+def obtener_datos_por_id(lote_number, id_number):
+    try:
+        # Obtener datos generales del lote
+        datos_lote = {}
+        datos_lote["Numero de mangos en el lote"] = get_num_mangos_procesados(lote_number)
+        datos_lote["Numero de detecciones del lote"] = get_num_detecciones_lote(lote_number)
+        exportables = get_num_exportables_no_exportables(lote_number)
+        datos_lote["Numero de detecciones de mango exportable"] = exportables['exportable']
+        datos_lote["Numero de detecciones de mango no_exportable"] = exportables['no_exportable']
+        maduros_verdes = get_num_verdes_maduros(lote_number)
+        datos_lote["Numero de detecciones de mango maduro"] = maduros_verdes['mango_maduro']
+        datos_lote["Numero de detecciones de mango verde"] = maduros_verdes['mango_verde']
+        defectos = get_num_con_defectos_sin_defectos(lote_number)
+        datos_lote["Numero de detecciones de mango con_defectos"] = defectos['mango_con_defectos']
+        datos_lote["Numero de detecciones de mango sin_defectos"] = defectos['mango_sin_defectos']
+        datos_lote["Fecha del lote"] = get_fecha_procesado_lote(lote_number)
+        datos_lote["Porcentaje de confianza promedio de todos los modelos del lote"] = f"{get_confianza_promedio_lote(lote_number)}%"
+        datos_lote["Porcentaje de confianza promedio del modelo exportabilidad"] = f"{get_confianza_promedio_exportabilidad(lote_number)}%"
+        datos_lote["Porcentaje de confianza promedio del modelo madurez"] = f"{get_confianza_promedio_madurez(lote_number)}%"
+        datos_lote["Porcentaje de confianza promedio del modelo defectos"] = f"{get_confianza_promedio_defectos(lote_number)}%"
+        datos_lote["Cantidad de mangos exportables del lote"] = get_cantidad_mangos_exportables_lote(lote_number)
+        datos_lote["Cantidad de mangos no exportables del lote"] = get_cantidad_mangos_no_exportables_lote(lote_number)
+        datos_lote["Cantidad de mangos verdes del lote"] = get_cantidad_mangos_verdes_lote(lote_number)
+        datos_lote["Cantidad de mangos maduros del lote"] = get_cantidad_mangos_maduros_lote(lote_number)
+        datos_lote["Cantidad de mangos con defectos del lote"] = get_cantidad_mangos_con_defecto_lote(lote_number)
+        datos_lote["Cantidad de mangos sin defectos del lote"] = get_cantidad_mangos_sin_defecto_lote(lote_number)
+        datos_lote["Porcentaje de mangos exportables del lote"] = f"{get_porcentaje_mangos_exportables_lote(lote_number)}%"
+        datos_lote["Porcentaje de mangos no exportables del lote"] = f"{get_porcentaje_mangos_no_exportables_lote(lote_number)}%"
+        datos_lote["Porcentaje de mangos verdes del lote"] = f"{get_porcentaje_mangos_verdes_lote(lote_number)}%"
+        datos_lote["Porcentaje de mangos maduros del lote"] = f"{get_porcentaje_mangos_maduros_lote(lote_number)}%"
+        datos_lote["Porcentaje de mangos con defectos del lote"] = f"{get_porcentaje_mangos_con_defecto_lote(lote_number)}%"
+        datos_lote["Porcentaje de mangos sin defectos del lote"] = f"{get_porcentaje_mangos_sin_defecto_lote(lote_number)}%"
+
+        # Obtener datos específicos por ID
+        datos_id = {}
+        datos_id["Fecha de detección"] = get_fecha_deteccion_lote_id(lote_number, id_number)
+        datos_id["Exportabilidad"] = get_exportabilidad_mango(lote_number, id_number)
+        datos_id["Madurez"] = get_madurez_mango(lote_number, id_number)
+        datos_id["Defectos"] = get_defectos_mango(lote_number, id_number)
+        datos_id["Confianza promedio exportabilidad"] = get_confianza_promedio_exportabilidad_mango(lote_number, id_number)
+        datos_id["Confianza promedio madurez"] = get_confianza_promedio_madurez_mango(lote_number, id_number)
+        datos_id["Confianza promedio defectos"] = get_confianza_promedio_defectos_mango(lote_number, id_number)
+
+        return jsonify({"status": "success", "datos_lote": datos_lote, "datos_id": datos_id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/obtener_datos_mango/<lote_number>/<item_id>')
+def obtener_datos_mango(lote_number, item_id):
+    try:
+        datos = {}
+        datos["Fecha de detección"] = get_fecha_deteccion_lote_id(lote_number, item_id)
+        datos["Exportabilidad"] = get_exportabilidad_mango(lote_number, item_id)
+        datos["Madurez"] = get_madurez_mango(lote_number, item_id)
+        datos["Defectos"] = get_defectos_mango(lote_number, item_id)
+        datos["Confianza promedio exportabilidad"] = f"{get_confianza_promedio_exportabilidad_mango(lote_number, item_id)}%"
+        datos["Confianza promedio madurez"] = f"{get_confianza_promedio_madurez_mango(lote_number, item_id)}%"
+        datos["Confianza promedio defectos"] = f"{get_confianza_promedio_defectos_mango(lote_number, item_id)}%"
         return jsonify({"status": "success", "datos": datos})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
