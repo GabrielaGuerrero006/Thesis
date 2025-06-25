@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, render_template, Response, jsonify
+from flask import Flask, render_template, Response, jsonify, send_from_directory
 from ultralytics import YOLO
 import os
 import cv2
@@ -21,6 +21,12 @@ from database import (
     # NUEVAS FUNCIONES PARA ANÁLISIS POR ID
     get_fecha_deteccion_lote_id, get_exportabilidad_mango, get_madurez_mango, get_defectos_mango,
     get_confianza_promedio_exportabilidad_mango, get_confianza_promedio_madurez_mango, get_confianza_promedio_defectos_mango
+)
+from images import (
+    generar_grafico_exportables_pie,
+    generar_grafico_verdes_maduros_pie,
+    generar_grafico_con_sin_defectos_pie,
+    generar_grafico_confianza_promedio_bar
 )
 
 # Inicializar la base de datos al inicio
@@ -496,6 +502,40 @@ def obtener_datos_mango(lote_number, item_id):
         return jsonify({"status": "success", "datos": datos})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/generar_imagenes_lote/<lote_number>', methods=['POST'])
+def generar_imagenes_lote(lote_number):
+    try:
+        generar_grafico_exportables_pie(lote_number)
+        generar_grafico_verdes_maduros_pie(lote_number)
+        generar_grafico_con_sin_defectos_pie(lote_number)
+        generar_grafico_confianza_promedio_bar(lote_number)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/imagenes_lote/<lote_number>/<filename>')
+def imagenes_lote(lote_number, filename):
+    # Sirve archivos de imagen de la carpeta images/<lote_number>
+    import os
+    dir_path = os.path.join('images', str(lote_number))
+    return send_from_directory(dir_path, filename)
+
+@app.route('/obtener_rutas_imagenes_lote/<lote_number>')
+def obtener_rutas_imagenes_lote(lote_number):
+    # Devuelve las rutas relativas de las imágenes generadas para el lote
+    nombres = [
+        'Exportables-NoExportables-Pie.jpg',
+        'Verdes-Maduros-Pie.jpg',
+        'Con-Sin-Defectos-Pie.jpg',
+        'Confianza-Promedio-Bar.jpg'
+    ]
+    rutas = [f'/imagenes_lote/{lote_number}/{nombre}' for nombre in nombres]
+    # Solo incluir las que existan
+    import os
+    base_dir = os.path.join('images', str(lote_number))
+    rutas_existentes = [ruta for ruta, nombre in zip(rutas, nombres) if os.path.exists(os.path.join(base_dir, nombre))]
+    return jsonify({"imagenes": rutas_existentes})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

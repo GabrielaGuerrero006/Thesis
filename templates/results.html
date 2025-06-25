@@ -29,6 +29,32 @@
             max-width: 400px;
             margin: 0 auto;
         }
+        .galeria-img {
+            cursor: pointer;
+            max-width: 100%;
+            height: auto;
+        }
+        #lightboxModal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+        }
+        #lightboxModal.active {
+            display: flex !important;
+        }
+        #lightboxImg {
+            max-width: 90vw;
+            max-height: 90vh;
+            box-shadow: 0 0 20px #000;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -58,7 +84,8 @@
         <div class="button-container">
             <button id="cargarLotes" class="btn btn-primary">Actualizar Lotes</button>
             <button id="actualizarIDs" class="btn btn-info">Actualizar IDs</button>
-            <button id="boton2" class="btn btn-secondary">Obtener Datos</button>
+            <button id="obtenerDatos" class="btn btn-secondary">Obtener Datos</button>
+            <button id="obtenerImagenes" class="btn btn-warning">Obtener Imágenes</button>
         </div>
         <div id="tablaResultadosContainer" style="display:none; margin-top:2rem;">
             <table id="tablaResultados" class="table table-bordered table-striped">
@@ -85,6 +112,7 @@
                 </tbody>
             </table>
         </div>
+        <div id="galeriaImagenes" style="display:none; margin-top:2rem;"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -153,7 +181,7 @@
             });
 
             // Funcionalidad para el botón Obtener Datos
-            $('#boton2').click(function() {
+            $('#obtenerDatos').click(function() {
                 const loteSeleccionado = $('#lotesDropdown').val();
                 const analisisProfundidad = $('#analisisProfundidad').is(':checked');
                 const idDropdownVisible = $('#idDropdownContainer').is(':visible');
@@ -220,6 +248,107 @@
             // Si el usuario cambia de ID, ocultar la tabla de ID
             $('#idDropdown').change(function() {
                 $('#tablaResultadosIDContainer').hide();
+            });
+
+            // Funcionalidad para el botón Obtener Imágenes
+            $('#obtenerImagenes').click(function() {
+                const loteSeleccionado = $('#lotesDropdown').val();
+                const analisisProfundidad = $('#analisisProfundidad').is(':checked');
+                const idDropdownVisible = $('#idDropdownContainer').is(':visible');
+                if (!loteSeleccionado) {
+                    // No hacer nada si no hay lote seleccionado
+                    return;
+                }
+                // Si el checkbox está marcado y el dropdown de ID está visible, no hacer nada
+                if (analisisProfundidad && idDropdownVisible) {
+                    return;
+                }
+                // Generar imágenes en backend
+                $.ajax({
+                    url: `/generar_imagenes_lote/${loteSeleccionado}`,
+                    method: 'POST',
+                    complete: function() {
+                        // Luego de generar, obtener rutas y mostrar galería
+                        $.ajax({
+                            url: `/obtener_rutas_imagenes_lote/${loteSeleccionado}`,
+                            method: 'GET',
+                            success: function(response) {
+                                mostrarGaleriaImagenes(response.imagenes);
+                            },
+                            error: function() {
+                                $('#galeriaImagenes').hide();
+                            }
+                        });
+                    }
+                });
+            });
+
+            function mostrarGaleriaImagenes(imagenes) {
+                if (!imagenes || imagenes.length === 0) {
+                    $('#galeriaImagenes').hide();
+                    return;
+                }
+                let galeriaHtml = '<div class="row">';
+                imagenes.forEach(function(src, idx) {
+                    if (idx > 0 && idx % 4 === 0) galeriaHtml += '</div><div class="row">';
+                    galeriaHtml += `
+                        <div class="col-md-3 mb-3">
+                            <img src="${src}?t=${Date.now()}" class="img-thumbnail galeria-img" style="cursor:pointer;max-width:100%;height:auto;" data-img="${src}">
+                        </div>
+                    `;
+                });
+                galeriaHtml += '</div>';
+                $('#galeriaImagenes').html(galeriaHtml).show();
+            }
+
+            // Lightbox/modal para ampliar imagen
+            if ($('#lightboxModal').length === 0) {
+                $('body').append(`
+                    <div id="lightboxModal">
+                        <img id="lightboxImg" src="">
+                    </div>
+                `);
+            }
+            $(document).on('click', '.galeria-img', function() {
+                const src = $(this).attr('data-img');
+                $('#lightboxImg').attr('src', src);
+                $('#lightboxModal').addClass('active');
+            });
+            $(document).on('click', '#lightboxModal', function(e) {
+                if (e.target === this) {
+                    $('#lightboxModal').removeClass('active');
+                }
+            });
+
+            // Mostrar galería automáticamente si la tabla de resultados por lote está visible
+            $('#obtenerDatos').click(function() {
+                setTimeout(function() {
+                    if ($('#tablaResultadosContainer').is(':visible')) {
+                        const loteSeleccionado = $('#lotesDropdown').val();
+                        if (loteSeleccionado) {
+                            $.ajax({
+                                url: `/obtener_rutas_imagenes_lote/${loteSeleccionado}`,
+                                method: 'GET',
+                                success: function(response) {
+                                    mostrarGaleriaImagenes(response.imagenes);
+                                },
+                                error: function() {
+                                    $('#galeriaImagenes').hide();
+                                }
+                            });
+                        }
+                    } else {
+                        $('#galeriaImagenes').hide();
+                    }
+                }, 300);
+            });
+            // Ocultar galería si se muestra la tabla de análisis por ID
+            $('#idDropdown').change(function() {
+                $('#galeriaImagenes').hide();
+            });
+            // Ocultar galería si el usuario cambia de lote
+            $('#lotesDropdown').change(function() {
+                $('#galeriaImagenes').hide();
             });
         });
     </script>
