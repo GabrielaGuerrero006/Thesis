@@ -83,6 +83,7 @@ def save_image_db(lote_number, item_id, image_path):
     
     # Mensaje de depuración para mostrar los datos que se intentan guardar
     print(f"DEBUG: Intentando guardar imagen en DB: Lote={lote_number}, ID={item_id}, Fecha={capture_date}, Hora={capture_time}, Ruta={image_path}")
+    
     try:
         cursor.execute(
             'INSERT INTO captured_images (lote_number, item_id, capture_date, capture_time, image_path) VALUES (?, ?, ?, ?, ?)',

@@ -200,7 +200,7 @@ def generate_frames_thread():
                 print(f"DEBUG: Condición para tomar foto cumplida. Tiempo total: {elapsed_time_overall:.2f}s. photo_taken_for_current_id: {photo_taken_for_current_id}")
                 success_frame, frame_to_save = camera.read()
                 if success_frame:
-                    image_dir = os.path.join('frames', str(current_lote))
+                    image_dir = os.path.join('images', str(current_lote))
                     os.makedirs(image_dir, exist_ok=True) # Asegurarse de que el directorio exista
                     image_filename = f"{current_lote}-{current_id}.jpg"
                     image_path = os.path.join(image_dir, image_filename)
@@ -584,8 +584,9 @@ def generar_imagenes_lote(lote_number):
 
 @app.route('/imagenes_lote/<lote_number>/<filename>')
 def imagenes_lote(lote_number, filename):
-    # Sirve archivos de imagen de la carpeta frames/<lote_number>
-    dir_path = os.path.join('frames', str(lote_number))
+    # Sirve archivos de imagen de la carpeta images/<lote_number>
+    import os
+    dir_path = os.path.join('images', str(lote_number))
     return send_from_directory(dir_path, filename)
 
 @app.route('/obtener_rutas_imagenes_lote/<lote_number>')
@@ -599,18 +600,22 @@ def obtener_rutas_imagenes_lote(lote_number):
             'Con-Sin-Defectos-Pie.jpg': 'defectos_img',
             'Confianza-Promedio-Bar.jpg': 'confianza_img'
         }
+        
         rutas_por_categoria = {}
         import os
-        base_dir = os.path.join('frames', str(lote_number))
+        base_dir = os.path.join('images', str(lote_number))
+
         for filename, key in mapa_imagenes.items():
             full_path = os.path.join(base_dir, filename)
             if os.path.exists(full_path):
                 rutas_por_categoria[key] = f'/imagenes_lote/{lote_number}/{filename}'
             else:
-                rutas_por_categoria[key] = None
+                rutas_por_categoria[key] = None # O un string vacío, o un placeholder si se desea
+
+        # *** CAMBIO CLAVE AQUÍ: Asegurarse de incluir "status": "success" ***
         return jsonify({"status": "success", "imagenes": rutas_por_categoria})
     except Exception as e:
-        print(f"ERROR: Error en obtener_rutas_imagenes_lote: {e}")
+        print(f"ERROR: Error en obtener_rutas_imagenes_lote: {e}") # Log para depuración
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
