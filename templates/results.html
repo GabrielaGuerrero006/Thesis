@@ -55,6 +55,10 @@
             box-shadow: 0 0 20px #000;
             border-radius: 8px;
         }
+        .section-table {
+            margin-top: 2rem;
+            display: none; /* Ocultar por defecto */
+        }
     </style>
 </head>
 <body>
@@ -87,18 +91,74 @@
             <button id="obtenerDatos" class="btn btn-secondary">Obtener Datos</button>
             <button id="obtenerImagenes" class="btn btn-warning">Obtener Imágenes</button>
         </div>
-        <div id="tablaResultadosContainer" style="display:none; margin-top:2rem;">
-            <table id="tablaResultados" class="table table-bordered table-striped">
+
+        <!-- Nuevas tablas para datos por lote -->
+        <div id="datosGeneralesContainer" class="section-table">
+            <h3>Datos generales</h3>
+            <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
                         <th>Nombre del resultado</th>
                         <th>Valor de resultado</th>
                     </tr>
                 </thead>
-                <tbody>
-                </tbody>
+                <tbody id="datosGeneralesBody"></tbody>
             </table>
         </div>
+
+        <div id="exportabilidadContainer" class="section-table">
+            <h3>Exportabilidad</h3>
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody id="exportabilidadBody"></tbody>
+            </table>
+        </div>
+
+        <div id="madurezContainer" class="section-table">
+            <h3>Madurez</h3>
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody id="madurezBody"></tbody>
+            </table>
+        </div>
+
+        <div id="defectosContainer" class="section-table">
+            <h3>Defectos</h3>
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody id="defectosBody"></tbody>
+            </table>
+        </div>
+
+        <div id="confianzaContainer" class="section-table">
+            <h3>Confianza</h3>
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre del resultado</th>
+                        <th>Valor de resultado</th>
+                    </tr>
+                </thead>
+                <tbody id="confianzaBody"></tbody>
+            </table>
+        </div>
+        
+        <!-- Tabla existente para análisis por ID (mantener como está) -->
         <div id="tablaResultadosIDContainer" style="display:none; margin-top:2rem;">
             <table id="tablaResultadosID" class="table table-bordered table-striped">
                 <thead>
@@ -145,6 +205,9 @@
                 } else {
                     $('#idDropdownContainer').hide();
                 }
+                // Ocultar todas las tablas al cambiar el modo de análisis
+                $('.section-table').hide();
+                $('#tablaResultadosIDContainer').hide();
             });
 
             // Funcionalidad para el botón Actualizar IDs
@@ -186,8 +249,8 @@
                 const idDropdownVisible = $('#idDropdownContainer').is(':visible');
                 const idSeleccionado = $('#idDropdown').val();
 
-                // Ocultar ambas tablas antes de mostrar resultados
-                $('#tablaResultadosContainer').hide();
+                // Ocultar todas las tablas antes de mostrar resultados
+                $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
 
                 if (analisisProfundidad && idDropdownVisible && loteSeleccionado && idSeleccionado) {
@@ -199,7 +262,6 @@
                             if (response.status === 'success') {
                                 const tbody = $('#tablaResultadosID tbody');
                                 tbody.empty();
-                                // *** CAMBIO AQUÍ: ITERAR DIRECTAMENTE SOBRE LA LISTA DE PARES [NOMBRE, VALOR] PARA ANÁLISIS POR ID ***
                                 response.datos.forEach(function([nombre, valor]) {
                                     tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
                                 });
@@ -214,18 +276,43 @@
                         }
                     });
                 } else if (!analisisProfundidad && !idDropdownVisible && loteSeleccionado) {
-                    // Análisis por lote (funcionalidad actual)
+                    // Análisis por lote (nueva funcionalidad con 5 tablas)
                     $.ajax({
                         url: `/obtener_datos_lote/${loteSeleccionado}`,
                         method: 'GET',
                         success: function(response) {
                             if (response.status === 'success') {
-                                const tbody = $('#tablaResultados tbody');
-                                tbody.empty();
-                                response.datos.forEach(function([nombre, valor]) {
-                                    tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                // Limpiar y llenar cada tabla
+                                $('#datosGeneralesBody').empty();
+                                response.datos["Datos generales"].forEach(function([nombre, valor]) {
+                                    $('#datosGeneralesBody').append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
                                 });
-                                $('#tablaResultadosContainer').show();
+                                $('#datosGeneralesContainer').show();
+
+                                $('#exportabilidadBody').empty();
+                                response.datos["Exportabilidad"].forEach(function([nombre, valor]) {
+                                    $('#exportabilidadBody').append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#exportabilidadContainer').show();
+
+                                $('#madurezBody').empty();
+                                response.datos["Madurez"].forEach(function([nombre, valor]) {
+                                    $('#madurezBody').append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#madurezContainer').show();
+
+                                $('#defectosBody').empty();
+                                response.datos["Defectos"].forEach(function([nombre, valor]) {
+                                    $('#defectosBody').append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#defectosContainer').show();
+
+                                $('#confianzaBody').empty();
+                                response.datos["Confianza"].forEach(function([nombre, valor]) {
+                                    $('#confianzaBody').append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
+                                });
+                                $('#confianzaContainer').show();
+
                             } else {
                                 alert('No se pudieron obtener los datos: ' + response.message);
                             }
@@ -240,9 +327,9 @@
                 }
             });
 
-            // Si el usuario cambia de lote, ocultar ambas tablas hasta que vuelva a presionar el botón
+            // Si el usuario cambia de lote, ocultar todas las tablas hasta que vuelva a presionar el botón
             $('#lotesDropdown').change(function() {
-                $('#tablaResultadosContainer').hide();
+                $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
             });
             // Si el usuario cambia de ID, ocultar la tabla de ID
@@ -323,7 +410,8 @@
             // Mostrar galería automáticamente si la tabla de resultados por lote está visible
             $('#obtenerDatos').click(function() {
                 setTimeout(function() {
-                    if ($('#tablaResultadosContainer').is(':visible')) {
+                    // Solo mostrar galería si NO es análisis en profundidad y si se muestran las tablas de lote
+                    if (!$('#analisisProfundidad').is(':checked') && $('#datosGeneralesContainer').is(':visible')) {
                         const loteSeleccionado = $('#lotesDropdown').val();
                         if (loteSeleccionado) {
                             $.ajax({
@@ -342,11 +430,10 @@
                     }
                 }, 300);
             });
-            // Ocultar galería si se muestra la tabla de análisis por ID
+            // Ocultar galería si se muestra la tabla de análisis por ID o si se cambia el lote
             $('#idDropdown').change(function() {
                 $('#galeriaImagenes').hide();
             });
-            // Ocultar galería si el usuario cambia de lote
             $('#lotesDropdown').change(function() {
                 $('#galeriaImagenes').hide();
             });
