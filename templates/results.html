@@ -99,7 +99,6 @@
                 </tbody>
             </table>
         </div>
-        <!-- Segunda tabla para análisis por ID -->
         <div id="tablaResultadosIDContainer" style="display:none; margin-top:2rem;">
             <table id="tablaResultadosID" class="table table-bordered table-striped">
                 <thead>
@@ -200,7 +199,8 @@
                             if (response.status === 'success') {
                                 const tbody = $('#tablaResultadosID tbody');
                                 tbody.empty();
-                                Object.entries(response.datos).forEach(function([nombre, valor]) {
+                                // *** CAMBIO AQUÍ: ITERAR DIRECTAMENTE SOBRE LA LISTA DE PARES [NOMBRE, VALOR] PARA ANÁLISIS POR ID ***
+                                response.datos.forEach(function([nombre, valor]) {
                                     tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
                                 });
                                 $('#tablaResultadosIDContainer').show();
@@ -222,7 +222,7 @@
                             if (response.status === 'success') {
                                 const tbody = $('#tablaResultados tbody');
                                 tbody.empty();
-                                Object.entries(response.datos).forEach(function([nombre, valor]) {
+                                response.datos.forEach(function([nombre, valor]) {
                                     tbody.append(`<tr><td>${nombre}</td><td>${valor}</td></tr>`);
                                 });
                                 $('#tablaResultadosContainer').show();

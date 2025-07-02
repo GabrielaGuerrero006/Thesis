@@ -41,7 +41,7 @@ output_frame = None
 lock = threading.Lock()
 detection_thread = None
 detection_start_time = None
-model_stage = 0  # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
+model_stage = 0 # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
 current_model = None
 # Removido csv_file_path estático - ahora se genera dinámicamente
 
@@ -50,7 +50,7 @@ used_lote_numbers = set()
 used_id_numbers = set()
 current_lote = None
 current_id = None
-detections_buffer = []  # Buffer para almacenar todas las detecciones antes de guardar
+detections_buffer = [] # Buffer para almacenar todas las detecciones antes de guardar
 
 def generate_unique_number(used_set):
     """Genera un número único de 5 dígitos que no se haya usado antes"""
@@ -244,9 +244,9 @@ def generate_frames_thread():
                     
                     # Mostrar información del lote y ID en el frame
                     cv2.putText(annotated_frame, f"Lote: {current_lote} | ID: {current_id}",
-                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                                 (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
                     cv2.putText(annotated_frame, f"{modelo_texto} - Tiempo restante: {tiempo_restante:.1f}s",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                     with lock:
                         ret, buffer = cv2.imencode('.jpg', annotated_frame)
@@ -296,7 +296,7 @@ def results():
 @app.route('/video_feed')
 def video_feed():
     return Response(generate(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/start_camera')
 def start_camera():
@@ -337,8 +337,8 @@ def start_camera():
 
 @app.route('/stop_camera')
 def stop_camera():
-    stop_detection()  # Primero detenemos la detección
-    release_camera()  # Luego liberamos la cámara
+    stop_detection() # Primero detenemos la detección
+    release_camera() # Luego liberamos la cámara
     return jsonify({"status": "success", "message": "Cámara detenida"})
 
 @app.route('/save_detections')
@@ -407,35 +407,45 @@ def obtener_ids_lote(lote_number):
 @app.route('/obtener_datos_lote/<lote_number>')
 def obtener_datos_lote(lote_number):
     try:
-        datos = {}
-        datos["Numero de mangos en el lote"] = get_num_mangos_procesados(lote_number)
-        datos["Numero de detecciones del lote"] = get_num_detecciones_lote(lote_number)
+        datos = []
+        # Fecha del lote
+        datos.append(["Fecha del lote", get_fecha_procesado_lote(lote_number)])
+        datos.append(["Numero de detecciones del lote", get_num_detecciones_lote(lote_number)])
+        datos.append(["Numero de mangos en el lote", get_num_mangos_procesados(lote_number)])
+
+        # Exportabilidad
         exportables = get_num_exportables_no_exportables(lote_number)
-        datos["Numero de detecciones de mango exportable"] = exportables['exportable']
-        datos["Numero de detecciones de mango no_exportable"] = exportables['no_exportable']
+        datos.append(["Numero de detecciones de mango exportable", exportables['exportable']])
+        datos.append(["Numero de detecciones de mango no_exportable", exportables['no_exportable']])
+        datos.append(["Cantidad de mangos exportables del lote", get_cantidad_mangos_exportables_lote(lote_number)])
+        datos.append(["Cantidad de mangos no exportables del lote", get_cantidad_mangos_no_exportables_lote(lote_number)])
+        datos.append(["Porcentaje de mangos exportables del lote", f"{get_porcentaje_mangos_exportables_lote(lote_number)}%"])
+        datos.append(["Porcentaje de mangos no exportables del lote", f"{get_porcentaje_mangos_no_exportables_lote(lote_number)}%"])
+
+        # Madurez
         maduros_verdes = get_num_verdes_maduros(lote_number)
-        datos["Numero de detecciones de mango maduro"] = maduros_verdes['mango_maduro']
-        datos["Numero de detecciones de mango verde"] = maduros_verdes['mango_verde']
+        datos.append(["Numero de detecciones de mango verde", maduros_verdes['mango_verde']])
+        datos.append(["Numero de detecciones de mango maduro", maduros_verdes['mango_maduro']])
+        datos.append(["Cantidad de mangos verdes del lote", get_cantidad_mangos_verdes_lote(lote_number)])
+        datos.append(["Cantidad de mangos maduros del lote", get_cantidad_mangos_maduros_lote(lote_number)])
+        datos.append(["Porcentaje de mangos verdes del lote", f"{get_porcentaje_mangos_verdes_lote(lote_number)}%"])
+        datos.append(["Porcentaje de mangos maduros del lote", f"{get_porcentaje_mangos_maduros_lote(lote_number)}%"])
+
+        # Defectos
         defectos = get_num_con_defectos_sin_defectos(lote_number)
-        datos["Numero de detecciones de mango con_defectos"] = defectos['mango_con_defectos']
-        datos["Numero de detecciones de mango sin_defectos"] = defectos['mango_sin_defectos']
-        datos["Fecha del lote"] = get_fecha_procesado_lote(lote_number)
-        datos["Porcentaje de confianza promedio de todos los modelos del lote"] = f"{get_confianza_promedio_lote(lote_number)}%"
-        datos["Porcentaje de confianza promedio del modelo exportabilidad"] = f"{get_confianza_promedio_exportabilidad(lote_number)}%"
-        datos["Porcentaje de confianza promedio del modelo madurez"] = f"{get_confianza_promedio_madurez(lote_number)}%"
-        datos["Porcentaje de confianza promedio del modelo defectos"] = f"{get_confianza_promedio_defectos(lote_number)}%"
-        datos["Cantidad de mangos exportables del lote"] = get_cantidad_mangos_exportables_lote(lote_number)
-        datos["Cantidad de mangos no exportables del lote"] = get_cantidad_mangos_no_exportables_lote(lote_number)
-        datos["Cantidad de mangos verdes del lote"] = get_cantidad_mangos_verdes_lote(lote_number)
-        datos["Cantidad de mangos maduros del lote"] = get_cantidad_mangos_maduros_lote(lote_number)
-        datos["Cantidad de mangos con defectos del lote"] = get_cantidad_mangos_con_defecto_lote(lote_number)
-        datos["Cantidad de mangos sin defectos del lote"] = get_cantidad_mangos_sin_defecto_lote(lote_number)
-        datos["Porcentaje de mangos exportables del lote"] = f"{get_porcentaje_mangos_exportables_lote(lote_number)}%"
-        datos["Porcentaje de mangos no exportables del lote"] = f"{get_porcentaje_mangos_no_exportables_lote(lote_number)}%"
-        datos["Porcentaje de mangos verdes del lote"] = f"{get_porcentaje_mangos_verdes_lote(lote_number)}%"
-        datos["Porcentaje de mangos maduros del lote"] = f"{get_porcentaje_mangos_maduros_lote(lote_number)}%"
-        datos["Porcentaje de mangos con defectos del lote"] = f"{get_porcentaje_mangos_con_defecto_lote(lote_number)}%"
-        datos["Porcentaje de mangos sin defectos del lote"] = f"{get_porcentaje_mangos_sin_defecto_lote(lote_number)}%"
+        datos.append(["Numero de detecciones de mango sin_defectos", defectos['mango_sin_defectos']])
+        datos.append(["Numero de detecciones de mango con_defectos", defectos['mango_con_defectos']])
+        datos.append(["Cantidad de mangos sin defectos del lote", get_cantidad_mangos_sin_defecto_lote(lote_number)])
+        datos.append(["Cantidad de mangos con defectos del lote", get_cantidad_mangos_con_defecto_lote(lote_number)])
+        datos.append(["Porcentaje de mangos sin defectos del lote", f"{get_porcentaje_mangos_sin_defecto_lote(lote_number)}%"])
+        datos.append(["Porcentaje de mangos con defectos del lote", f"{get_porcentaje_mangos_con_defecto_lote(lote_number)}%"])
+
+        # Confianza promedio
+        datos.append(["Porcentaje de confianza promedio de todos los modelos del lote", f"{get_confianza_promedio_lote(lote_number)}%"])
+        datos.append(["Porcentaje de confianza promedio del modelo exportabilidad", f"{get_confianza_promedio_exportabilidad(lote_number)}%"])
+        datos.append(["Porcentaje de confianza promedio del modelo madurez", f"{get_confianza_promedio_madurez(lote_number)}%"])
+        datos.append(["Porcentaje de confianza promedio del modelo defectos", f"{get_confianza_promedio_defectos(lote_number)}%"])
+        
         return jsonify({"status": "success", "datos": datos})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -491,14 +501,16 @@ def obtener_datos_por_id(lote_number, id_number):
 @app.route('/obtener_datos_mango/<lote_number>/<item_id>')
 def obtener_datos_mango(lote_number, item_id):
     try:
-        datos = {}
-        datos["Fecha de detección"] = get_fecha_deteccion_lote_id(lote_number, item_id)
-        datos["Exportabilidad"] = get_exportabilidad_mango(lote_number, item_id)
-        datos["Madurez"] = get_madurez_mango(lote_number, item_id)
-        datos["Defectos"] = get_defectos_mango(lote_number, item_id)
-        datos["Confianza promedio exportabilidad"] = f"{get_confianza_promedio_exportabilidad_mango(lote_number, item_id)}%"
-        datos["Confianza promedio madurez"] = f"{get_confianza_promedio_madurez_mango(lote_number, item_id)}%"
-        datos["Confianza promedio defectos"] = f"{get_confianza_promedio_defectos_mango(lote_number, item_id)}%"
+        # *** CAMBIO AQUÍ: CONSTRUIR LA LISTA DE LISTAS CON EL ORDEN ESPECIFICADO ***
+        datos = []
+        datos.append(["Fecha de detección", get_fecha_deteccion_lote_id(lote_number, item_id)])
+        datos.append(["Exportabilidad", get_exportabilidad_mango(lote_number, item_id)])
+        datos.append(["Madurez", get_madurez_mango(lote_number, item_id)])
+        datos.append(["Defectos", get_defectos_mango(lote_number, item_id)])
+        datos.append(["Confianza promedio exportabilidad", f"{get_confianza_promedio_exportabilidad_mango(lote_number, item_id)}%"])
+        datos.append(["Confianza promedio madurez", f"{get_confianza_promedio_madurez_mango(lote_number, item_id)}%"])
+        datos.append(["Confianza promedio defectos", f"{get_confianza_promedio_defectos_mango(lote_number, item_id)}%"])
+        
         return jsonify({"status": "success", "datos": datos})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
