@@ -16,6 +16,12 @@ def ensure_lote_dir_exists(lote_number):
         os.makedirs(dir_path)
     return dir_path
 
+def my_autopct(pct):
+    """
+    Función personalizada para autopct que solo muestra el porcentaje si es mayor a 0.0%.
+    """
+    return ('%1.1f%%' % pct) if pct > 0.0 else ''
+
 def generar_grafico_exportables_pie(lote_number):
     """
     Genera un gráfico de pastel con los porcentajes de mangos exportables y no exportables para un lote dado.
@@ -30,26 +36,37 @@ def generar_grafico_exportables_pie(lote_number):
     exportables = datos.get('exportable', 0)
     no_exportables = datos.get('no_exportable', 0)
     total = exportables + no_exportables
+    
+    # Preparar datos para el gráfico
     if total == 0:
-        # Evitar división por cero, crear gráfico vacío
         sizes = [1]
         labels = ['Sin datos']
         colors = ['#cccccc']
     else:
         sizes = [exportables, no_exportables]
         labels = ['Exportables', 'No Exportables']
-        colors = ['#4CAF50', '#F44336']
+        colors = ['#4CAF50', '#F44336'] # Verde, Rojo
 
     # Crear gráfico de pastel
-    fig, ax = plt.subplots()
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+    fig, ax = plt.subplots(figsize=(6, 6)) # Aumentar ligeramente el tamaño para acomodar la leyenda
+    
+    # Dibujar el pastel sin etiquetas directas, usando autopct personalizado
+    wedges, texts, autotexts = ax.pie(sizes, autopct=my_autopct, startangle=90, colors=colors, pctdistance=0.85)
+    
     ax.set_title('Porcentajes de Mangos Exportables/No Exportables')
     ax.axis('equal')  # Para que sea un círculo
+
+    # Crear la leyenda fuera del gráfico
+    # `bbox_to_anchor` ajusta la posición de la leyenda. (0.5, -0.15) la centra debajo del gráfico.
+    # `ncol` define el número de columnas para la leyenda.
+    lgd = ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.15),
+                    fancybox=True, shadow=True, ncol=len(labels))
 
     # Guardar imagen en la ruta correspondiente
     dir_path = ensure_lote_dir_exists(lote_number)
     img_path = os.path.join(dir_path, 'Exportables-NoExportables-Pie.jpg')
-    plt.savefig(img_path, bbox_inches='tight')
+    # `bbox_extra_artists=(lgd,)` asegura que la leyenda se incluya en el área guardada de la imagen
+    plt.savefig(img_path, bbox_inches='tight', bbox_extra_artists=(lgd,))
     plt.close(fig)
     return img_path
 
@@ -66,6 +83,7 @@ def generar_grafico_verdes_maduros_pie(lote_number):
     verdes = datos.get('mango_verde', 0)
     maduros = datos.get('mango_maduro', 0)
     total = verdes + maduros
+    
     if total == 0:
         sizes = [1]
         labels = ['Sin datos']
@@ -75,14 +93,18 @@ def generar_grafico_verdes_maduros_pie(lote_number):
         labels = ['Verdes', 'Maduros']
         colors = ['#2196F3', '#FFEB3B']  # Azul y amarillo
 
-    fig, ax = plt.subplots()
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+    fig, ax = plt.subplots(figsize=(6, 6))
+    wedges, texts, autotexts = ax.pie(sizes, autopct=my_autopct, startangle=90, colors=colors, pctdistance=0.85)
+    
     ax.set_title('Porcentajes de Mangos Verde/Maduros')
     ax.axis('equal')
 
+    lgd = ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.15),
+                    fancybox=True, shadow=True, ncol=len(labels))
+
     dir_path = ensure_lote_dir_exists(lote_number)
     img_path = os.path.join(dir_path, 'Verdes-Maduros-Pie.jpg')
-    plt.savefig(img_path, bbox_inches='tight')
+    plt.savefig(img_path, bbox_inches='tight', bbox_extra_artists=(lgd,))
     plt.close(fig)
     return img_path
 
@@ -99,6 +121,7 @@ def generar_grafico_con_sin_defectos_pie(lote_number):
     con_defectos = datos.get('mango_con_defectos', 0)
     sin_defectos = datos.get('mango_sin_defectos', 0)
     total = con_defectos + sin_defectos
+    
     if total == 0:
         sizes = [1]
         labels = ['Sin datos']
@@ -108,14 +131,18 @@ def generar_grafico_con_sin_defectos_pie(lote_number):
         labels = ['Con Defectos', 'Sin Defectos']
         colors = ['#9C27B0', '#8BC34A']  # Morado y verde claro
 
-    fig, ax = plt.subplots()
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+    fig, ax = plt.subplots(figsize=(6, 6))
+    wedges, texts, autotexts = ax.pie(sizes, autopct=my_autopct, startangle=90, colors=colors, pctdistance=0.85)
+    
     ax.set_title('Porcentajes de Mangos Sin/Con Defectos')
     ax.axis('equal')
 
+    lgd = ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.15),
+                    fancybox=True, shadow=True, ncol=len(labels))
+
     dir_path = ensure_lote_dir_exists(lote_number)
     img_path = os.path.join(dir_path, 'Con-Sin-Defectos-Pie.jpg')
-    plt.savefig(img_path, bbox_inches='tight')
+    plt.savefig(img_path, bbox_inches='tight', bbox_extra_artists=(lgd,))
     plt.close(fig)
     return img_path
 

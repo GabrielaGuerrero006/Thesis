@@ -33,6 +33,8 @@
             cursor: pointer;
             max-width: 100%;
             height: auto;
+            border-radius: 8px; /* Mantener el estilo de redondeo */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Sombra sutil */
         }
         #lightboxModal {
             display: none;
@@ -58,6 +60,32 @@
         .section-table {
             margin-top: 2rem;
             display: none; /* Ocultar por defecto */
+        }
+        /* Estilos para alinear tablas e imágenes */
+        .table-image-row {
+            display: flex;
+            flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
+            align-items: flex-start; /* Alinea los elementos al inicio (arriba) */
+            gap: 1rem; /* Espacio entre la tabla y la imagen */
+        }
+        .table-container {
+            flex: 1; /* La tabla ocupará el espacio restante */
+            min-width: 300px; /* Ancho mínimo para la tabla */
+        }
+        .image-container {
+            flex-shrink: 0; /* Evita que la imagen se encoja */
+            width: 40%; /* Ancho de la imagen (ajustable) */
+            max-width: 400px; /* Ancho máximo para la imagen */
+            text-align: center;
+        }
+        @media (max-width: 768px) {
+            .table-image-row {
+                flex-direction: column; /* Apila en pantallas pequeñas */
+            }
+            .table-container, .image-container {
+                width: 100%; /* Ocupa todo el ancho */
+                max-width: none;
+            }
         }
     </style>
 </head>
@@ -92,7 +120,7 @@
             <button id="obtenerImagenes" class="btn btn-warning">Obtener Imágenes</button>
         </div>
 
-        <!-- Nuevas tablas para datos por lote -->
+        <!-- Nuevas tablas y contenedores de imagen para datos por lote -->
         <div id="datosGeneralesContainer" class="section-table">
             <h3>Datos generales</h3>
             <table class="table table-bordered table-striped">
@@ -108,54 +136,82 @@
 
         <div id="exportabilidadContainer" class="section-table">
             <h3>Exportabilidad</h3>
-            <table class="table table-bordered table-striped">
-                <thead>
-                    <tr>
-                        <th>Nombre del resultado</th>
-                        <th>Valor de resultado</th>
-                    </tr>
-                </thead>
-                <tbody id="exportabilidadBody"></tbody>
-            </table>
+            <div class="table-image-row">
+                <div class="table-container">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre del resultado</th>
+                                <th>Valor de resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="exportabilidadBody"></tbody>
+                    </table>
+                </div>
+                <div class="image-container">
+                    <img id="exportabilidadImg" src="" class="img-fluid galeria-img" style="display:none;">
+                </div>
+            </div>
         </div>
 
         <div id="madurezContainer" class="section-table">
             <h3>Madurez</h3>
-            <table class="table table-bordered table-striped">
-                <thead>
-                    <tr>
-                        <th>Nombre del resultado</th>
-                        <th>Valor de resultado</th>
-                    </tr>
-                </thead>
-                <tbody id="madurezBody"></tbody>
-            </table>
+            <div class="table-image-row">
+                <div class="table-container">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre del resultado</th>
+                                <th>Valor de resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="madurezBody"></tbody>
+                    </table>
+                </div>
+                <div class="image-container">
+                    <img id="madurezImg" src="" class="img-fluid galeria-img" style="display:none;">
+                </div>
+            </div>
         </div>
 
         <div id="defectosContainer" class="section-table">
             <h3>Defectos</h3>
-            <table class="table table-bordered table-striped">
-                <thead>
-                    <tr>
-                        <th>Nombre del resultado</th>
-                        <th>Valor de resultado</th>
-                    </tr>
-                </thead>
-                <tbody id="defectosBody"></tbody>
-            </table>
+            <div class="table-image-row">
+                <div class="table-container">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre del resultado</th>
+                                <th>Valor de resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="defectosBody"></tbody>
+                    </table>
+                </div>
+                <div class="image-container">
+                    <img id="defectosImg" src="" class="img-fluid galeria-img" style="display:none;">
+                </div>
+            </div>
         </div>
 
         <div id="confianzaContainer" class="section-table">
             <h3>Confianza</h3>
-            <table class="table table-bordered table-striped">
-                <thead>
-                    <tr>
-                        <th>Nombre del resultado</th>
-                        <th>Valor de resultado</th>
-                    </tr>
-                </thead>
-                <tbody id="confianzaBody"></tbody>
-            </table>
+            <div class="table-image-row">
+                <div class="table-container">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nombre del resultado</th>
+                                <th>Valor de resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="confianzaBody"></tbody>
+                    </table>
+                </div>
+                <div class="image-container">
+                    <img id="confianzaImg" src="" class="img-fluid galeria-img" style="display:none;">
+                </div>
+            </div>
         </div>
         
         <!-- Tabla existente para análisis por ID (mantener como está) -->
@@ -171,7 +227,7 @@
                 </tbody>
             </table>
         </div>
-        <div id="galeriaImagenes" style="display:none; margin-top:2rem;"></div>
+        <!-- El div galeriaImagenes se elimina, las imágenes se colocan junto a sus tablas -->
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -205,9 +261,10 @@
                 } else {
                     $('#idDropdownContainer').hide();
                 }
-                // Ocultar todas las tablas al cambiar el modo de análisis
+                // Ocultar todas las tablas y las imágenes al cambiar el modo de análisis
                 $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
+                $('.image-container img').hide(); // Ocultar todas las imágenes
             });
 
             // Funcionalidad para el botón Actualizar IDs
@@ -249,9 +306,10 @@
                 const idDropdownVisible = $('#idDropdownContainer').is(':visible');
                 const idSeleccionado = $('#idDropdown').val();
 
-                // Ocultar todas las tablas antes de mostrar resultados
+                // Ocultar todas las tablas y las imágenes antes de mostrar resultados
                 $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
+                $('.image-container img').hide(); // Ocultar todas las imágenes
 
                 if (analisisProfundidad && idDropdownVisible && loteSeleccionado && idSeleccionado) {
                     // Análisis por ID
@@ -327,68 +385,85 @@
                 }
             });
 
-            // Si el usuario cambia de lote, ocultar todas las tablas hasta que vuelva a presionar el botón
+            // Si el usuario cambia de lote, ocultar todas las tablas y las imágenes hasta que vuelva a presionar el botón
             $('#lotesDropdown').change(function() {
                 $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
+                $('.image-container img').hide(); // Ocultar todas las imágenes
             });
-            // Si el usuario cambia de ID, ocultar la tabla de ID
+            // Si el usuario cambia de ID, ocultar la tabla de ID y las imágenes
             $('#idDropdown').change(function() {
                 $('#tablaResultadosIDContainer').hide();
+                $('.image-container img').hide(); // Ocultar todas las imágenes
             });
 
             // Funcionalidad para el botón Obtener Imágenes
             $('#obtenerImagenes').click(function() {
                 const loteSeleccionado = $('#lotesDropdown').val();
                 const analisisProfundidad = $('#analisisProfundidad').is(':checked');
-                const idDropdownVisible = $('#idDropdownContainer').is(':visible');
+                
                 if (!loteSeleccionado) {
-                    // No hacer nada si no hay lote seleccionado
+                    alert('Seleccione un lote para obtener las imágenes.');
                     return;
                 }
-                // Si el checkbox está marcado y el dropdown de ID está visible, no hacer nada
-                if (analisisProfundidad && idDropdownVisible) {
-                    return;
+                
+                // Ocultar todas las imágenes antes de cargar las nuevas
+                $('.image-container img').hide().attr('src', '');
+
+                if (!analisisProfundidad) { // Solo si no es análisis en profundidad
+                    // Generar imágenes en backend
+                    $.ajax({
+                        url: `/generar_imagenes_lote/${loteSeleccionado}`,
+                        method: 'POST',
+                        complete: function() {
+                            // Luego de generar, obtener rutas y mostrar las imágenes al lado de sus tablas
+                            $.ajax({
+                                url: `/obtener_rutas_imagenes_lote/${loteSeleccionado}`,
+                                method: 'GET',
+                                success: function(response) {
+                                    console.log("Response from obtener_rutas_imagenes_lote:", response); // Log completo de la respuesta
+                                    if (response.status === 'success') {
+                                        if (response.imagenes) {
+                                            console.log("Images data received:", response.imagenes);
+                                            // Asignar y mostrar cada imagen en su lugar
+                                            if (response.imagenes.exportabilidad_img) {
+                                                $('#exportabilidadImg').attr('src', response.imagenes.exportabilidad_img + '?t=' + Date.now()).show();
+                                                console.log("Mostrando exportabilidad_img:", response.imagenes.exportabilidad_img);
+                                            }
+                                            if (response.imagenes.madurez_img) {
+                                                $('#madurezImg').attr('src', response.imagenes.madurez_img + '?t=' + Date.now()).show();
+                                                console.log("Mostrando madurez_img:", response.imagenes.madurez_img);
+                                            }
+                                            if (response.imagenes.defectos_img) {
+                                                $('#defectosImg').attr('src', response.imagenes.defectos_img + '?t=' + Date.now()).show();
+                                                console.log("Mostrando defectos_img:", response.imagenes.defectos_img);
+                                            }
+                                            if (response.imagenes.confianza_img) {
+                                                $('#confianzaImg').attr('src', response.imagenes.confianza_img + '?t=' + Date.now()).show();
+                                                console.log("Mostrando confianza_img:", response.imagenes.confianza_img);
+                                            }
+                                        } else {
+                                            console.error("response.imagenes es falsy o vacío:", response.imagenes);
+                                            alert('No se pudieron obtener las rutas de las imágenes: Datos de imagen faltantes o vacíos.');
+                                        }
+                                    } else {
+                                        console.error("El estado de la respuesta no es 'success':", response.status);
+                                        alert('No se pudieron obtener las rutas de las imágenes: Estado de respuesta incorrecto.');
+                                    }
+                                },
+                                error: function(jqXHR, textStatus, errorThrown) {
+                                    console.error('AJAX Error al obtener las rutas de las imágenes:', textStatus, errorThrown, jqXHR);
+                                    alert('Error al obtener las rutas de las imágenes: Error de red o servidor.');
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    alert('Las imágenes solo están disponibles para el análisis por lote.');
                 }
-                // Generar imágenes en backend
-                $.ajax({
-                    url: `/generar_imagenes_lote/${loteSeleccionado}`,
-                    method: 'POST',
-                    complete: function() {
-                        // Luego de generar, obtener rutas y mostrar galería
-                        $.ajax({
-                            url: `/obtener_rutas_imagenes_lote/${loteSeleccionado}`,
-                            method: 'GET',
-                            success: function(response) {
-                                mostrarGaleriaImagenes(response.imagenes);
-                            },
-                            error: function() {
-                                $('#galeriaImagenes').hide();
-                            }
-                        });
-                    }
-                });
             });
 
-            function mostrarGaleriaImagenes(imagenes) {
-                if (!imagenes || imagenes.length === 0) {
-                    $('#galeriaImagenes').hide();
-                    return;
-                }
-                let galeriaHtml = '<div class="row">';
-                imagenes.forEach(function(src, idx) {
-                    if (idx > 0 && idx % 4 === 0) galeriaHtml += '</div><div class="row">';
-                    galeriaHtml += `
-                        <div class="col-md-3 mb-3">
-                            <img src="${src}?t=${Date.now()}" class="img-thumbnail galeria-img" style="cursor:pointer;max-width:100%;height:auto;" data-img="${src}">
-                        </div>
-                    `;
-                });
-                galeriaHtml += '</div>';
-                $('#galeriaImagenes').html(galeriaHtml).show();
-            }
-
-            // Lightbox/modal para ampliar imagen
+            // Lightbox/modal para ampliar imagen (se mantiene igual)
             if ($('#lightboxModal').length === 0) {
                 $('body').append(`
                     <div id="lightboxModal">
@@ -397,7 +472,7 @@
                 `);
             }
             $(document).on('click', '.galeria-img', function() {
-                const src = $(this).attr('data-img');
+                const src = $(this).attr('src'); // Usar 'src' directamente
                 $('#lightboxImg').attr('src', src);
                 $('#lightboxModal').addClass('active');
             });
@@ -405,37 +480,6 @@
                 if (e.target === this) {
                     $('#lightboxModal').removeClass('active');
                 }
-            });
-
-            // Mostrar galería automáticamente si la tabla de resultados por lote está visible
-            $('#obtenerDatos').click(function() {
-                setTimeout(function() {
-                    // Solo mostrar galería si NO es análisis en profundidad y si se muestran las tablas de lote
-                    if (!$('#analisisProfundidad').is(':checked') && $('#datosGeneralesContainer').is(':visible')) {
-                        const loteSeleccionado = $('#lotesDropdown').val();
-                        if (loteSeleccionado) {
-                            $.ajax({
-                                url: `/obtener_rutas_imagenes_lote/${loteSeleccionado}`,
-                                method: 'GET',
-                                success: function(response) {
-                                    mostrarGaleriaImagenes(response.imagenes);
-                                },
-                                error: function() {
-                                    $('#galeriaImagenes').hide();
-                                }
-                            });
-                        }
-                    } else {
-                        $('#galeriaImagenes').hide();
-                    }
-                }, 300);
-            });
-            // Ocultar galería si se muestra la tabla de análisis por ID o si se cambia el lote
-            $('#idDropdown').change(function() {
-                $('#galeriaImagenes').hide();
-            });
-            $('#lotesDropdown').change(function() {
-                $('#galeriaImagenes').hide();
             });
         });
     </script>

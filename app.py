@@ -543,19 +543,32 @@ def imagenes_lote(lote_number, filename):
 
 @app.route('/obtener_rutas_imagenes_lote/<lote_number>')
 def obtener_rutas_imagenes_lote(lote_number):
-    # Devuelve las rutas relativas de las imágenes generadas para el lote
-    nombres = [
-        'Exportables-NoExportables-Pie.jpg',
-        'Verdes-Maduros-Pie.jpg',
-        'Con-Sin-Defectos-Pie.jpg',
-        'Confianza-Promedio-Bar.jpg'
-    ]
-    rutas = [f'/imagenes_lote/{lote_number}/{nombre}' for nombre in nombres]
-    # Solo incluir las que existan
-    import os
-    base_dir = os.path.join('images', str(lote_number))
-    rutas_existentes = [ruta for ruta, nombre in zip(rutas, nombres) if os.path.exists(os.path.join(base_dir, nombre))]
-    return jsonify({"imagenes": rutas_existentes})
+    try:
+        # Devuelve las rutas relativas de las imágenes generadas para el lote
+        # Mapeo de nombres de archivo a claves descriptivas para el frontend
+        mapa_imagenes = {
+            'Exportables-NoExportables-Pie.jpg': 'exportabilidad_img',
+            'Verdes-Maduros-Pie.jpg': 'madurez_img',
+            'Con-Sin-Defectos-Pie.jpg': 'defectos_img',
+            'Confianza-Promedio-Bar.jpg': 'confianza_img'
+        }
+        
+        rutas_por_categoria = {}
+        import os
+        base_dir = os.path.join('images', str(lote_number))
+
+        for filename, key in mapa_imagenes.items():
+            full_path = os.path.join(base_dir, filename)
+            if os.path.exists(full_path):
+                rutas_por_categoria[key] = f'/imagenes_lote/{lote_number}/{filename}'
+            else:
+                rutas_por_categoria[key] = None # O un string vacío, o un placeholder si se desea
+
+        # *** CAMBIO CLAVE AQUÍ: Asegurarse de incluir "status": "success" ***
+        return jsonify({"status": "success", "imagenes": rutas_por_categoria})
+    except Exception as e:
+        print(f"Error en obtener_rutas_imagenes_lote: {e}") # Log para depuración
+        return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
