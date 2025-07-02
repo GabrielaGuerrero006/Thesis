@@ -177,6 +177,12 @@ def generate_frames_thread():
                 stop_detection()
                 break
 
+            # Definir los tiempos de duración para cada etapa del modelo
+            # El primer modelo (exportabilidad) durará 7 segundos
+            # Los siguientes dos modelos (madurez y defectos) durarán 5 segundos cada uno
+            duration_stage1 = 7  # Segundos para el modelo de exportabilidad
+            duration_stage_others = 5 # Segundos para los modelos de madurez y defectos
+
             if model_stage == 0:
                 model_stage = 1
                 current_model = YOLO('exportabilidad.pt')
@@ -186,19 +192,19 @@ def generate_frames_thread():
             current_time = time.time()
             elapsed_time = current_time - detection_start_time
 
-            if model_stage == 1 and elapsed_time >= 5 and camera_running:
+            if model_stage == 1 and elapsed_time >= duration_stage1 and camera_running:
                 model_stage = 2
                 current_model = YOLO('madurez.pt')
                 detection_start_time = current_time
                 print("Cargando modelo de madurez")
 
-            elif model_stage == 2 and elapsed_time >= 5 and camera_running:
+            elif model_stage == 2 and elapsed_time >= duration_stage_others and camera_running:
                 model_stage = 3
                 current_model = YOLO('defectos.pt')
                 detection_start_time = current_time
                 print("Cargando modelo de defectos")
 
-            elif model_stage == 3 and elapsed_time >= 5 and camera_running:
+            elif model_stage == 3 and elapsed_time >= duration_stage_others and camera_running:
                 model_stage = 4
                 print("Finalizando detección automáticamente desde el thread.")
                 stop_detection()
@@ -240,7 +246,12 @@ def generate_frames_thread():
                     elif model_stage == 3:
                         modelo_texto = "Modelo: defectos.pt"
 
-                    tiempo_restante = 5 - elapsed_time if model_stage in [1, 2, 3] else 0
+                    # Calcular el tiempo restante basado en la etapa actual
+                    tiempo_restante = 0
+                    if model_stage == 1:
+                        tiempo_restante = duration_stage1 - elapsed_time
+                    elif model_stage in [2, 3]:
+                        tiempo_restante = duration_stage_others - elapsed_time
                     
                     # Mostrar información del lote y ID en el frame
                     cv2.putText(annotated_frame, f"Lote: {current_lote} | ID: {current_id}",
