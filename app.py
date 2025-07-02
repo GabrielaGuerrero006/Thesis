@@ -20,7 +20,8 @@ from database import (
     get_porcentaje_mangos_sin_defecto_lote, get_ids_lote,
     # NUEVAS FUNCIONES PARA ANÁLISIS POR ID
     get_fecha_deteccion_lote_id, get_exportabilidad_mango, get_madurez_mango, get_defectos_mango,
-    get_confianza_promedio_exportabilidad_mango, get_confianza_promedio_madurez_mango, get_confianza_promedio_defectos_mango
+    get_confianza_promedio_exportabilidad_mango, get_confianza_promedio_madurez_mango, get_confianza_promedio_defectos_mango,
+    save_image_db # Importar la nueva función para guardar imágenes
 )
 from images import (
     generar_grafico_exportables_pie,
@@ -40,7 +41,8 @@ camera_running = False
 output_frame = None
 lock = threading.Lock()
 detection_thread = None
-detection_start_time = None
+detection_start_time = None # Tiempo de inicio para la etapa actual del modelo
+overall_detection_start_time = None # Tiempo de inicio para toda la detección
 model_stage = 0 # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
 current_model = None
 # Removido csv_file_path estático - ahora se genera dinámicamente
@@ -51,6 +53,7 @@ used_id_numbers = set()
 current_lote = None
 current_id = None
 detections_buffer = [] # Buffer para almacenar todas las detecciones antes de guardar
+photo_taken_for_current_id = False # Nueva variable para controlar la captura de la foto
 
 def generate_unique_number(used_set):
     """Genera un número único de 5 dígitos que no se haya usado antes"""
@@ -68,8 +71,10 @@ def generate_lote():
 
 def generate_id():
     """Genera un nuevo código de ID único"""
-    global current_id
+    global current_id, photo_taken_for_current_id
     current_id = generate_unique_number(used_id_numbers)
+    photo_taken_for_current_id = False # Resetear al generar un nuevo ID
+    print(f"DEBUG: Nuevo ID generado: {current_id}. photo_taken_for_current_id reseteado a False.")
     return current_id
 
 
@@ -165,58 +170,78 @@ def process_results(results, model_name):
     return detections
 
 def generate_frames_thread():
-    global camera, camera_running, output_frame, detection_start_time, model_stage, current_model
+    global camera, camera_running, output_frame, detection_start_time, overall_detection_start_time, model_stage, current_model, photo_taken_for_current_id, current_lote, current_id
 
     try:
         model_stage = 0
-        print("Iniciando el thread de generación de frames.")
+        print("DEBUG: Inicia el thread de generación de frames.")
+
+        # Definir los tiempos de duración para cada etapa del modelo
+        duration_stage1 = 7  # Segundos para el modelo de exportabilidad
+        duration_stage_others = 5 # Segundos para los modelos de madurez y defectos
+        photo_capture_time = 10 # Tiempo en segundos para tomar la foto, relativo al inicio general
 
         while camera_running:
             if not camera or not camera.isOpened():
-                print("Error: La cámara no está disponible")
+                print("ERROR: La cámara no está disponible o se cerró inesperadamente.")
                 stop_detection()
                 break
 
-            # Definir los tiempos de duración para cada etapa del modelo
-            # El primer modelo (exportabilidad) durará 7 segundos
-            # Los siguientes dos modelos (madurez y defectos) durarán 5 segundos cada uno
-            duration_stage1 = 7  # Segundos para el modelo de exportabilidad
-            duration_stage_others = 5 # Segundos para los modelos de madurez y defectos
+            current_time = time.time()
+            
+            # Tiempo transcurrido para la etapa actual del modelo
+            # Asegurarse de que detection_start_time no sea None antes de usarlo
+            elapsed_time_current_stage = current_time - (detection_start_time if detection_start_time is not None else current_time)
+            # Tiempo transcurrido desde el inicio general de la detección
+            elapsed_time_overall = current_time - (overall_detection_start_time if overall_detection_start_time is not None else current_time)
+
+            # Lógica para tomar la foto
+            if not photo_taken_for_current_id and elapsed_time_overall >= photo_capture_time:
+                print(f"DEBUG: Condición para tomar foto cumplida. Tiempo total: {elapsed_time_overall:.2f}s. photo_taken_for_current_id: {photo_taken_for_current_id}")
+                success_frame, frame_to_save = camera.read()
+                if success_frame:
+                    image_dir = os.path.join('images', str(current_lote))
+                    os.makedirs(image_dir, exist_ok=True) # Asegurarse de que el directorio exista
+                    image_filename = f"{current_lote}-{current_id}.jpg"
+                    image_path = os.path.join(image_dir, image_filename)
+                    cv2.imwrite(image_path, frame_to_save)
+                    save_image_db(current_lote, current_id, image_path) # Guardar en la nueva tabla
+                    photo_taken_for_current_id = True
+                    print(f"DEBUG: Foto capturada y guardada en disco y DB: {image_path}")
+                else:
+                    print("ADVERTENCIA: No se pudo capturar el frame para guardar la foto.")
 
             if model_stage == 0:
                 model_stage = 1
                 current_model = YOLO('exportabilidad.pt')
-                detection_start_time = time.time()
-                print("Cargando modelo de exportabilidad")
+                detection_start_time = time.time() # Establecer el inicio para esta etapa
+                print("DEBUG: Cargando modelo de exportabilidad.")
 
-            current_time = time.time()
-            elapsed_time = current_time - detection_start_time
-
-            if model_stage == 1 and elapsed_time >= duration_stage1 and camera_running:
+            elif model_stage == 1 and elapsed_time_current_stage >= duration_stage1 and camera_running:
+                print(f"DEBUG: Cambiando a modelo de madurez. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
                 model_stage = 2
                 current_model = YOLO('madurez.pt')
-                detection_start_time = current_time
-                print("Cargando modelo de madurez")
+                detection_start_time = current_time # Reiniciar el tiempo para la nueva etapa
 
-            elif model_stage == 2 and elapsed_time >= duration_stage_others and camera_running:
+            elif model_stage == 2 and elapsed_time_current_stage >= duration_stage_others and camera_running:
+                print(f"DEBUG: Cambiando a modelo de defectos. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
                 model_stage = 3
                 current_model = YOLO('defectos.pt')
-                detection_start_time = current_time
-                print("Cargando modelo de defectos")
+                detection_start_time = current_time # Reiniciar el tiempo para la nueva etapa
 
-            elif model_stage == 3 and elapsed_time >= duration_stage_others and camera_running:
-                model_stage = 4
-                print("Finalizando detección automáticamente desde el thread.")
+            elif model_stage == 3 and elapsed_time_current_stage >= duration_stage_others and camera_running:
+                print(f"DEBUG: Finalizando detección automáticamente. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
+                model_stage = 4 # Marcar como finalizado antes de detener
                 stop_detection()
-                break
+                break # Salir del bucle while
 
             if not camera_running:
-                print("Thread de generación de frames finalizado.")
+                print("DEBUG: camera_running es False, saliendo del bucle de frames.")
                 break
 
             success, frame = camera.read()
             if not success:
-                print("Error al leer frame de la cámara")
+                print("ERROR: Error al leer frame de la cámara principal. Deteniendo detección.")
                 stop_detection()
                 break
 
@@ -249,10 +274,13 @@ def generate_frames_thread():
                     # Calcular el tiempo restante basado en la etapa actual
                     tiempo_restante = 0
                     if model_stage == 1:
-                        tiempo_restante = duration_stage1 - elapsed_time
+                        tiempo_restante = duration_stage1 - elapsed_time_current_stage
                     elif model_stage in [2, 3]:
-                        tiempo_restante = duration_stage_others - elapsed_time
+                        tiempo_restante = duration_stage_others - elapsed_time_current_stage
                     
+                    # Asegurarse de que tiempo_restante no sea negativo para la visualización
+                    tiempo_restante = max(0, tiempo_restante)
+
                     # Mostrar información del lote y ID en el frame
                     cv2.putText(annotated_frame, f"Lote: {current_lote} | ID: {current_id}",
                                  (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
@@ -264,7 +292,7 @@ def generate_frames_thread():
                         if ret:
                             output_frame = buffer.tobytes()
                 except Exception as e:
-                    print(f"Error en la predicción del modelo: {str(e)}")
+                    print(f"ERROR: Error en la predicción del modelo: {str(e)}")
                     continue
             else:
                 with lock:
@@ -272,13 +300,13 @@ def generate_frames_thread():
                     if ret:
                         output_frame = buffer.tobytes()
 
-            time.sleep(0.03)
+            time.sleep(0.03) # Pequeña pausa para no saturar la CPU
 
     except Exception as e:
-        print(f"Error en generate_frames_thread: {str(e)}")
+        print(f"ERROR: Error crítico en generate_frames_thread: {str(e)}")
         stop_detection()
     finally:
-        print("Thread de detección finalizado")
+        print("DEBUG: Thread de detección finalizado (finally block).")
 
 def generate():
     global output_frame, camera_running, lock
@@ -311,7 +339,7 @@ def video_feed():
 
 @app.route('/start_camera')
 def start_camera():
-    global camera, camera_running, model_stage, current_model, detection_thread, current_lote, current_id
+    global camera, camera_running, model_stage, current_model, detection_thread, current_lote, current_id, photo_taken_for_current_id, overall_detection_start_time, detection_start_time
     try:
         if camera_running:
             return jsonify({"status": "warning", "message": "La cámara ya está en funcionamiento"})
@@ -326,14 +354,15 @@ def start_camera():
         # Generar códigos: nuevo lote si no existe, siempre nuevo ID
         if current_lote is None:
             generate_lote()
-            print(f"Nuevo lote generado: {current_lote}")
+            print(f"DEBUG: Nuevo lote generado: {current_lote}")
         
-        generate_id()
-        print(f"Nuevo ID generado: {current_id}")
+        generate_id() # Generar un nuevo ID y resetear photo_taken_for_current_id
         
         camera_running = True
         model_stage = 0
         current_model = None
+        overall_detection_start_time = time.time() # Establecer el tiempo de inicio general
+        detection_start_time = time.time() # Inicializar detection_start_time aquí también
         detection_thread = threading.Thread(target=generate_frames_thread)
         detection_thread.start()
         
@@ -344,6 +373,7 @@ def start_camera():
             "id": current_id
         })
     except Exception as e:
+        print(f"ERROR: Error al iniciar la cámara: {str(e)}")
         return jsonify({"status": "error", "message": f"Error al iniciar la cámara: {str(e)}"})
 
 @app.route('/stop_camera')
@@ -383,6 +413,7 @@ def save_detections():
         })
         
     except Exception as e:
+        print(f"ERROR: Error al guardar las detecciones: {str(e)}")
         return jsonify({
             "status": "error",
             "message": f"Error al guardar las detecciones: {str(e)}"
@@ -405,6 +436,7 @@ def obtener_lotes():
         lotes = get_lotes()
         return jsonify({"status": "success", "lotes": lotes})
     except Exception as e:
+        print(f"ERROR: Error al obtener lotes: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/obtener_ids_lote/<lote_number>')
@@ -413,6 +445,7 @@ def obtener_ids_lote(lote_number):
         ids = get_ids_lote(lote_number)
         return jsonify({"status": "success", "ids": ids})
     except Exception as e:
+        print(f"ERROR: Error al obtener IDs de lote: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/obtener_datos_lote/<lote_number>')
@@ -467,6 +500,7 @@ def obtener_datos_lote(lote_number):
         
         return jsonify({"status": "success", "datos": datos_agrupados})
     except Exception as e:
+        print(f"ERROR: Error al obtener datos del lote: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/obtener_datos_por_id/<lote_number>/<id_number>')
@@ -515,6 +549,7 @@ def obtener_datos_por_id(lote_number, id_number):
 
         return jsonify({"status": "success", "datos_lote": datos_lote, "datos_id": datos_id})
     except Exception as e:
+        print(f"ERROR: Error al obtener datos por ID: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/obtener_datos_mango/<lote_number>/<item_id>')
@@ -532,7 +567,8 @@ def obtener_datos_mango(lote_number, item_id):
         
         return jsonify({"status": "success", "datos": datos})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"ERROR: Error al obtener datos del mango: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/generar_imagenes_lote/<lote_number>', methods=['POST'])
 def generar_imagenes_lote(lote_number):
@@ -543,6 +579,7 @@ def generar_imagenes_lote(lote_number):
         generar_grafico_confianza_promedio_bar(lote_number)
         return jsonify({"status": "success"})
     except Exception as e:
+        print(f"ERROR: Error al generar imágenes del lote: {str(e)}")
         return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/imagenes_lote/<lote_number>/<filename>')
@@ -578,7 +615,7 @@ def obtener_rutas_imagenes_lote(lote_number):
         # *** CAMBIO CLAVE AQUÍ: Asegurarse de incluir "status": "success" ***
         return jsonify({"status": "success", "imagenes": rutas_por_categoria})
     except Exception as e:
-        print(f"Error en obtener_rutas_imagenes_lote: {e}") # Log para depuración
+        print(f"ERROR: Error en obtener_rutas_imagenes_lote: {e}") # Log para depuración
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':

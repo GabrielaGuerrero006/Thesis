@@ -28,6 +28,18 @@ def init_db():
         )
     ''')
     
+    # Crear nueva tabla para imágenes capturadas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS captured_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lote_number INTEGER,
+            item_id INTEGER,
+            capture_date DATE,
+            capture_time TIME,
+            image_path TEXT UNIQUE
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -53,6 +65,40 @@ def save_detections_db(detections_list):
     
     conn.commit()
     conn.close()
+
+def save_image_db(lote_number, item_id, image_path):
+    """
+    Guarda la información de una imagen capturada en la base de datos.
+    
+    Args:
+        lote_number (int): Número de lote.
+        item_id (int): ID del mango.
+        image_path (str): Ruta relativa o absoluta del archivo de imagen.
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    current_time = datetime.now()
+    capture_date = current_time.strftime('%Y-%m-%d')
+    capture_time = current_time.strftime('%H:%M:%S')
+    
+    # Mensaje de depuración para mostrar los datos que se intentan guardar
+    print(f"DEBUG: Intentando guardar imagen en DB: Lote={lote_number}, ID={item_id}, Fecha={capture_date}, Hora={capture_time}, Ruta={image_path}")
+    
+    try:
+        cursor.execute(
+            'INSERT INTO captured_images (lote_number, item_id, capture_date, capture_time, image_path) VALUES (?, ?, ?, ?, ?)',
+            (lote_number, item_id, capture_date, capture_time, image_path)
+        )
+        conn.commit()
+        print(f"DEBUG: Imagen {image_path} guardada exitosamente en la base de datos.")
+    except sqlite3.IntegrityError as e:
+        # Esto se activaría si image_path ya existe debido a la restricción UNIQUE
+        print(f"ERROR: sqlite3.IntegrityError al guardar imagen {image_path}: {e}. La imagen ya existe o hay un conflicto de clave única.")
+    except Exception as e:
+        # Captura cualquier otra excepción durante el proceso de guardado
+        print(f"ERROR: Error general al guardar la imagen en la base de datos: {e}")
+    finally:
+        conn.close()
 
 def get_lotes():
     """Obtiene todos los números de lote únicos de la base de datos"""
