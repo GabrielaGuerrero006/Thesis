@@ -1,4 +1,14 @@
+###############################################################
 # app.py
+# -------------------------------------------------------------
+# Sistema de Clasificación de Mangos Ataulfo
+# -------------------------------------------------------------
+# Este archivo implementa la lógica principal del backend Flask
+# para el sistema de clasificación de mangos usando modelos YOLO.
+# Permite la captura de video, detección automática por etapas,
+# almacenamiento de resultados y visualización de análisis.
+# -------------------------------------------------------------
+###############################################################
 from flask import Flask, render_template, Response, jsonify, send_from_directory
 from ultralytics import YOLO
 import os
@@ -35,7 +45,11 @@ init_db()
 
 app = Flask(__name__)
 
-# Variables globales para el control de la cámara
+
+# ----------------------
+# Variables globales
+# ----------------------
+# Control de la cámara y detección
 camera = None
 camera_running = False
 output_frame = None
@@ -45,18 +59,24 @@ detection_start_time = None # Tiempo de inicio para la etapa actual del modelo
 overall_detection_start_time = None # Tiempo de inicio para toda la detección
 model_stage = 0 # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
 current_model = None
-# Removido csv_file_path estático - ahora se genera dinámicamente
 
-# Variables para el sistema de lotes e IDs
-used_lote_numbers = set()
-used_id_numbers = set()
-current_lote = None
-current_id = None
-detections_buffer = [] # Buffer para almacenar todas las detecciones antes de guardar
-photo_taken_for_current_id = False # Nueva variable para controlar la captura de la foto
+# Control de lotes e IDs
+used_lote_numbers = set()  # Números de lote ya usados
+used_id_numbers = set()    # Números de ID ya usados
+current_lote = None        # Lote actual
+current_id = None          # ID actual
+detections_buffer = []     # Buffer para almacenar todas las detecciones antes de guardar
+photo_taken_for_current_id = False # Controla si ya se tomó la foto para el ID actual
 
+
+# ----------------------
+# Funciones auxiliares
+# ----------------------
 def generate_unique_number(used_set):
-    """Genera un número único de 5 dígitos que no se haya usado antes"""
+    """
+    Genera un número único de 5 dígitos que no se haya usado antes.
+    Se utiliza para lotes e IDs de mangos.
+    """
     while True:
         number = random.randint(10000, 99999)
         if number not in used_set:
@@ -64,13 +84,18 @@ def generate_unique_number(used_set):
             return number
 
 def generate_lote():
-    """Genera un nuevo código de lote único"""
+    """
+    Genera un nuevo código de lote único y lo asigna como lote actual.
+    """
     global current_lote
     current_lote = generate_unique_number(used_lote_numbers)
     return current_lote
 
 def generate_id():
-    """Genera un nuevo código de ID único"""
+    """
+    Genera un nuevo código de ID único y lo asigna como ID actual.
+    También reinicia el control de foto tomada para el nuevo ID.
+    """
     global current_id, photo_taken_for_current_id
     current_id = generate_unique_number(used_id_numbers)
     photo_taken_for_current_id = False # Resetear al generar un nuevo ID
@@ -79,17 +104,18 @@ def generate_id():
 
 
 
+
 def save_detections_to_db():
-    """Guarda todas las detecciones del buffer a la base de datos"""
+    """
+    Guarda todas las detecciones almacenadas en el buffer en la base de datos.
+    El buffer se limpia después de guardar exitosamente.
+    """
     global detections_buffer, current_lote
-    
     if not detections_buffer:
         print("No hay detecciones para guardar")
         return
-    
     if current_lote is None:
         raise ValueError("No hay un lote activo para guardar las detecciones")
-    
     try:
         save_detections_db(detections_buffer)
         print(f"Guardadas {len(detections_buffer)} detecciones en la base de datos")
@@ -98,14 +124,16 @@ def save_detections_to_db():
         print(f"Error al guardar las detecciones: {e}")
         raise
 
+
 def add_detection_to_buffer(model_name, detections):
-    """Añade los resultados de detección al buffer en memoria"""
+    """
+    Añade los resultados de detección al buffer en memoria.
+    Cada entrada incluye lote, ID, fecha, hora, modelo, clase detectada y confianza.
+    """
     global detections_buffer, current_lote, current_id
-    
     current_time = datetime.datetime.now()
     date_str = current_time.strftime('%Y-%m-%d')
     time_str = current_time.strftime('%H:%M:%S')
-    
     if len(detections) == 0:
         # No se detectaron objetos
         detections_buffer.append([current_lote, current_id, date_str, time_str, model_name, 'no detections', 0.0])
@@ -116,7 +144,12 @@ def add_detection_to_buffer(model_name, detections):
             confidence = det[1]
             detections_buffer.append([current_lote, current_id, date_str, time_str, model_name, class_name, confidence])
 
+
 def init_camera():
+    """
+    Inicializa la cámara web para la captura de video.
+    Configura la resolución y retorna el objeto cámara.
+    """
     global camera
     try:
         if camera is not None:
@@ -131,7 +164,11 @@ def init_camera():
         print(f"Error al inicializar la cámara: {str(e)}")
         return None
 
+
 def stop_detection():
+    """
+    Detiene la detección y reinicia variables de control.
+    """
     global camera_running, model_stage, current_model, output_frame
     print("Deteniendo detección...")
     camera_running = False
@@ -139,7 +176,11 @@ def stop_detection():
     current_model = None
     output_frame = None
 
+
 def release_camera():
+    """
+    Libera los recursos de la cámara y detiene el thread de detección si está activo.
+    """
     global camera, detection_thread, camera_running
     print("Liberando recursos de la cámara...")
     if camera is not None:
@@ -151,10 +192,14 @@ def release_camera():
     camera_running = False
     print("Cámara y thread de detección detenidos.")
 
+
 def process_results(results, model_name):
-    """Procesa los resultados de YOLO y devuelve lista de detecciones"""
+    """
+    Procesa los resultados de YOLO y devuelve una lista de detecciones.
+    Cada detección es una tupla (nombre_clase, confianza).
+    Además, añade los resultados al buffer para su posterior guardado.
+    """
     detections = []
-    
     # Si hay detecciones
     if results[0].boxes and len(results[0].boxes.cls) > 0:
         # Recorrer cada detección
@@ -163,10 +208,8 @@ def process_results(results, model_name):
             confidence = float(results[0].boxes.conf[i].item())
             class_name = results[0].names[class_id]
             detections.append((class_name, confidence))
-    
     # Añadir al buffer en lugar de guardar directamente
     add_detection_to_buffer(model_name, detections)
-    
     return detections
 
 def generate_frames_thread():

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Clasificación de Mangos Ataulfo</title>
+    <link rel="icon" type="image/x-icon" href="/static/mango.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -11,11 +12,27 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            background-color: #ffec9a;
+            /* Fondo con imagen portada.png opaca */
+            background: url('/static/portada.png') no-repeat center center fixed;
+            background-size: cover;
+            position: relative;
+        }
+        /* Capa opaca sobre la imagen de fondo */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255,255,255,0.6); /* Opacidad blanca, puedes ajustar el valor */
+            z-index: 0;
+            pointer-events: none;
         }
         .main-container {
             text-align: center;
             padding: 2rem;
+            z-index: 1;
         }
         .btn-container {
             margin-top: 2rem;
