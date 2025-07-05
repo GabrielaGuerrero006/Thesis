@@ -89,33 +89,51 @@
         }
     </style>
 </head>
-<body>
+<body style="background-color: #ffec9a;">
     <div class="container mt-5">
         <div class="header-container">
             <a href="/" class="back-button btn btn-primary">Volver al Inicio</a>
             <h1 class="centered-title">Análisis de Resultados</h1>
         </div>
         
+
+
         <div class="dropdown-container">
-            <select id="lotesDropdown" class="form-select mb-3">
-                <option value="" selected disabled>Seleccione un lote...</option>
-            </select>
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" value="" id="analisisProfundidad">
-                <label class="form-check-label" for="analisisProfundidad">
-                    Análisis en Profundidad
-                </label>
+            <!-- Lote Dropdown y botón -->
+            <div class="row align-items-center mb-3">
+                <div class="col-12 col-md-10 mx-auto d-flex flex-column align-items-center">
+                    <label for="lotesDropdown" class="form-label fw-bold mb-1">Código del Lote</label>
+                    <div class="d-flex flex-row w-100 justify-content-center align-items-center" style="gap: 0.5rem;">
+                        <select id="lotesDropdown" class="form-select" style="min-width:220px; max-width:350px; flex:2;">
+                            <option value="" selected disabled>Seleccione un lote...</option>
+                        </select>
+                        <button id="cargarLotes" class="btn btn-primary ms-1" type="button" style="flex:1; min-width:120px;">Actualizar Lotes</button>
+                    </div>
+                </div>
             </div>
+            <!-- Checkbox -->
+            <div class="form-check mb-3 d-flex justify-content-center align-items-center" style="gap:0.5rem;">
+                <input class="form-check-input m-0" type="checkbox" value="" id="analisisProfundidad" style="float:none;">
+                <label class="form-check-label m-0" for="analisisProfundidad" style="float:none;">Análisis en Profundidad</label>
+            </div>
+            <!-- ID Dropdown y botón, ambos ocultos por defecto -->
             <div id="idDropdownContainer" style="display:none;">
-                <select id="idDropdown" class="form-select mb-3">
-                    <option value="" selected disabled>Seleccione el ID...</option>
-                </select>
+                <div class="row align-items-center mb-3">
+                    <div class="col-12 col-md-10 mx-auto d-flex flex-column align-items-center">
+                        <label for="idDropdown" class="form-label fw-bold mb-1" id="idDropdownLabel" style="display:none;">ID del Mango</label>
+                        <div class="d-flex flex-row w-100 justify-content-center align-items-center" style="gap: 0.5rem;">
+                            <select id="idDropdown" class="form-select" style="min-width:220px; max-width:350px; flex:2;">
+                                <option value="" selected disabled>Seleccione el ID...</option>
+                            </select>
+                            <button id="actualizarIDs" class="btn btn-info ms-1" type="button" style="display:none; flex:1; min-width:120px;">Actualizar IDs</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="button-container">
-            <button id="cargarLotes" class="btn btn-primary">Actualizar Lotes</button>
-            <button id="actualizarIDs" class="btn btn-info">Actualizar IDs</button>
+        <!-- Botones de acción centrados -->
+        <div class="d-flex justify-content-center gap-3 mb-3">
             <button id="obtenerDatos" class="btn btn-secondary">Obtener Datos</button>
             <button id="obtenerImagenes" class="btn btn-warning">Obtener Imágenes</button>
         </div>
@@ -254,12 +272,16 @@
                 });
             });
 
-            // Mostrar/ocultar el dropdown de ID según el checkbox
+            // Mostrar/ocultar el dropdown de ID y su label/botón según el checkbox
             $('#analisisProfundidad').change(function() {
                 if ($(this).is(':checked')) {
                     $('#idDropdownContainer').show();
+                    $('#idDropdownLabel').show();
+                    $('#actualizarIDs').show();
                 } else {
                     $('#idDropdownContainer').hide();
+                    $('#idDropdownLabel').hide();
+                    $('#actualizarIDs').hide();
                 }
                 // Ocultar todas las tablas y las imágenes al cambiar el modo de análisis
                 $('.section-table').hide();
@@ -390,6 +412,11 @@
                 $('.section-table').hide();
                 $('#tablaResultadosIDContainer').hide();
                 $('.image-container img').hide(); // Ocultar todas las imágenes
+                // Si está en modo análisis en profundidad, ocultar el label y botón de IDs
+                if (!$('#analisisProfundidad').is(':checked')) {
+                    $('#idDropdownLabel').hide();
+                    $('#actualizarIDs').hide();
+                }
             });
             // Si el usuario cambia de ID, ocultar la tabla de ID y las imágenes
             $('#idDropdown').change(function() {
