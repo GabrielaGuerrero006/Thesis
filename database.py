@@ -350,7 +350,7 @@ def get_cantidad_mangos_con_defecto_lote(lote_number):
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defecto'))
+    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defectos'))
     cantidad = cursor.fetchone()[0]
     conn.close()
     return cantidad
@@ -365,7 +365,7 @@ def get_cantidad_mangos_sin_defecto_lote(lote_number):
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defecto'))
+    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defectos'))
     cantidad = cursor.fetchone()[0]
     conn.close()
     return cantidad
@@ -428,9 +428,9 @@ def get_porcentaje_mangos_con_defecto_lote(lote_number):
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defecto', 'mango_sin_defecto'))
+    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defectos', 'mango_sin_defectos'))
     total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defecto'))
+    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defectos'))
     mango_con_defecto = cursor.fetchone()[0]
     conn.close()
     return round((mango_con_defecto / total) * 100, 2) if total > 0 else 0.0
@@ -441,9 +441,9 @@ def get_porcentaje_mangos_sin_defecto_lote(lote_number):
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defecto', 'mango_sin_defecto'))
+    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defectos', 'mango_sin_defectos'))
     total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defecto'))
+    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defectos'))
     mango_sin_defecto = cursor.fetchone()[0]
     conn.close()
     return round((mango_sin_defecto / total) * 100, 2) if total > 0 else 0.0
