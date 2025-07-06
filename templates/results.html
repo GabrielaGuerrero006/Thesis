@@ -489,30 +489,35 @@
                         }
                     });
                 } else if (analisisProfundidad && idDropdownVisible && loteSeleccionado && idSeleccionado) {
-                    // Nueva funcionalidad: mostrar galería de imágenes por ID
-                    $.ajax({
-                        url: `/obtener_imagenes_mango/${loteSeleccionado}/${idSeleccionado}`,
-                        method: 'GET',
-                        success: function(response) {
-                            if (response.status === 'success' && response.imagenes && response.imagenes.length > 0) {
-                                // Eliminar galería previa si existe
-                                $('#galeriaImagenesID').remove();
-                                // Crear galería debajo de la tabla de ID
-                                let galeriaHtml = '<div id="galeriaImagenesID" class="mt-4"><h5>Imágenes del mango (ID)</h5><div class="row">';
-                                response.imagenes.forEach(function(imgSrc, idx) {
-                                    galeriaHtml += `<div class="col-6 col-md-3 mb-3"><img src="data:image/jpeg;base64,${imgSrc}" class="img-fluid galeria-img" style="cursor:pointer; border:2px solid #ccc; border-radius:8px; box-shadow:0 2px 8px #888;" alt="Imagen ${idx+1}"></div>`;
-                                });
-                                galeriaHtml += '</div></div>';
-                                // Insertar galería debajo de la tabla de ID
-                                $('#tablaResultadosIDContainer').after(galeriaHtml);
-                            } else {
-                                alert('No se encontraron imágenes para este ID.');
+                    // Solo mostrar la galería si la tabla de resultados por ID está visible
+                    if ($('#tablaResultadosIDContainer').is(':visible')) {
+                        $.ajax({
+                            url: `/obtener_imagenes_mango/${loteSeleccionado}/${idSeleccionado}`,
+                            method: 'GET',
+                            success: function(response) {
+                                if (response.status === 'success' && response.imagenes && response.imagenes.length > 0) {
+                                    // Eliminar galería previa si existe
+                                    $('#galeriaImagenesID').remove();
+                                    // Crear galería debajo de la tabla de ID
+                                    let galeriaHtml = '<div id="galeriaImagenesID" class="mt-4"><h5>Imágenes del mango</h5><div class="row">';
+                                    response.imagenes.forEach(function(imgSrc, idx) {
+                                        galeriaHtml += `<div class="col-6 col-md-3 mb-3"><img src="data:image/jpeg;base64,${imgSrc}" class="img-fluid galeria-img" style="cursor:pointer; border:2px solid #ccc; border-radius:8px; box-shadow:0 2px 8px #888;" alt="Imagen ${idx+1}"></div>`;
+                                    });
+                                    galeriaHtml += '</div></div>';
+                                    // Insertar galería debajo de la tabla de ID
+                                    $('#tablaResultadosIDContainer').after(galeriaHtml);
+                                } else {
+                                    alert('No se encontraron imágenes para este ID.');
+                                }
+                            },
+                            error: function() {
+                                alert('Error al obtener las imágenes para este ID.');
                             }
-                        },
-                        error: function() {
-                            alert('Error al obtener las imágenes para este ID.');
-                        }
-                    });
+                        });
+                    } else {
+                        // Si la tabla no está visible, no mostrar la galería
+                        $('#galeriaImagenesID').remove();
+                    }
                 } else {
                     alert('Seleccione correctamente el lote y el ID para el análisis en profundidad.');
                 }
