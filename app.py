@@ -222,7 +222,10 @@ def generate_frames_thread():
         # Definir los tiempos de duración para cada etapa del modelo
         duration_stage1 = 7  # Segundos para el modelo de exportabilidad
         duration_stage_others = 5 # Segundos para los modelos de madurez y defectos
-        photo_capture_time = 10 # Tiempo en segundos para tomar la foto, relativo al inicio general
+
+        # Tiempos para tomar las 4 fotos (en segundos desde el inicio)
+        photo_capture_times = [4, 8, 12, 16]
+        photos_taken = [False, False, False, False]  # Controla si ya se tomó cada foto
 
         while camera_running:
             if not camera or not camera.isOpened():
@@ -231,28 +234,28 @@ def generate_frames_thread():
                 break
 
             current_time = time.time()
-            
+
             # Tiempo transcurrido para la etapa actual del modelo
-            # Asegurarse de que detection_start_time no sea None antes de usarlo
             elapsed_time_current_stage = current_time - (detection_start_time if detection_start_time is not None else current_time)
             # Tiempo transcurrido desde el inicio general de la detección
             elapsed_time_overall = current_time - (overall_detection_start_time if overall_detection_start_time is not None else current_time)
 
-            # Lógica para tomar la foto
-            if not photo_taken_for_current_id and elapsed_time_overall >= photo_capture_time:
-                print(f"DEBUG: Condición para tomar foto cumplida. Tiempo total: {elapsed_time_overall:.2f}s. photo_taken_for_current_id: {photo_taken_for_current_id}")
-                success_frame, frame_to_save = camera.read()
-                if success_frame:
-                    image_dir = os.path.join('images', str(current_lote))
-                    os.makedirs(image_dir, exist_ok=True) # Asegurarse de que el directorio exista
-                    image_filename = f"{current_lote}-{current_id}.jpg"
-                    image_path = os.path.join(image_dir, image_filename)
-                    cv2.imwrite(image_path, frame_to_save)
-                    save_image_db(current_lote, current_id, image_path) # Guardar en la nueva tabla
-                    photo_taken_for_current_id = True
-                    print(f"DEBUG: Foto capturada y guardada en disco y DB: {image_path}")
-                else:
-                    print("ADVERTENCIA: No se pudo capturar el frame para guardar la foto.")
+            # Lógica para tomar las 4 fotos en los tiempos definidos
+            for idx, capture_time in enumerate(photo_capture_times):
+                if not photos_taken[idx] and elapsed_time_overall >= capture_time:
+                    print(f"DEBUG: Condición para tomar foto {idx+1} cumplida. Tiempo total: {elapsed_time_overall:.2f}s.")
+                    success_frame, frame_to_save = camera.read()
+                    if success_frame:
+                        image_dir = os.path.join('images', str(current_lote))
+                        os.makedirs(image_dir, exist_ok=True) # Asegurarse de que el directorio exista
+                        image_filename = f"{current_lote}-{current_id}-{idx+1}.jpg"
+                        image_path = os.path.join(image_dir, image_filename)
+                        cv2.imwrite(image_path, frame_to_save)
+                        save_image_db(current_lote, current_id, image_path) # Guardar en la base de datos
+                        photos_taken[idx] = True
+                        print(f"DEBUG: Foto {idx+1} capturada y guardada en disco y DB: {image_path}")
+                    else:
+                        print(f"ADVERTENCIA: No se pudo capturar el frame para guardar la foto {idx+1}.")
 
             if model_stage == 0:
                 model_stage = 1
