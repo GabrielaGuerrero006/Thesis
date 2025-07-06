@@ -1,3 +1,4 @@
+import base64
 import sqlite3
 import os
 import pandas as pd
@@ -103,6 +104,23 @@ def save_image_db(lote_number, item_id, image_path):
         print(f"ERROR: Error general al guardar la imagen en la base de datos: {e}")
     finally:
         conn.close()
+
+def get_images_by_lote_and_id(lote_number, item_id):
+    """
+    Obtiene las imágenes (BLOB) asociadas a un lote y un ID específico.
+    Devuelve una lista de imágenes codificadas en base64 (para mostrar en HTML).
+    """
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    cursor.execute('''SELECT image_blob FROM captured_images WHERE lote_number = ? AND item_id = ? ORDER BY id ASC''', (int(lote_number), int(item_id)))
+    blobs = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    # Convertir cada blob a base64 para mostrar en HTML
+    images_base64 = []
+    for blob in blobs:
+        if blob:
+            images_base64.append(base64.b64encode(blob).decode('utf-8'))
+    return images_base64
 
 def get_lotes():
     """Obtiene todos los números de lote únicos de la base de datos"""

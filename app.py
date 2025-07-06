@@ -1,3 +1,4 @@
+from database import get_images_by_lote_and_id
 ###############################################################
 # app.py
 # -------------------------------------------------------------
@@ -664,6 +665,22 @@ def obtener_rutas_imagenes_lote(lote_number):
     except Exception as e:
         print(f"ERROR: Error en obtener_rutas_imagenes_lote: {e}") # Log para depuración
         return jsonify({"status": "error", "message": str(e)})
+
+# Nueva ruta para obtener imágenes por lote e ID (galería por ID)
+@app.route('/obtener_imagenes_mango/<lote_number>/<item_id>')
+def obtener_imagenes_mango(lote_number, item_id):
+    try:
+        imagenes = get_images_by_lote_and_id(lote_number, item_id)
+        return jsonify({
+            "status": "success",
+            "imagenes": imagenes
+        })
+    except Exception as e:
+        print(f"ERROR: Error al obtener imágenes por ID: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error al obtener imágenes: {str(e)}"
+        })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
