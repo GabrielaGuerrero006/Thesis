@@ -28,7 +28,7 @@ def init_db():
         )
     ''')
     
-    # Crear nueva tabla para imágenes capturadas
+    # Crear nueva tabla para imágenes capturadas (ahora con columna BLOB para la imagen)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS captured_images (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +36,8 @@ def init_db():
             item_id INTEGER,
             capture_date DATE,
             capture_time TIME,
-            image_path TEXT UNIQUE
+            image_path TEXT UNIQUE,
+            image_blob BLOB
         )
     ''')
     
@@ -85,12 +86,15 @@ def save_image_db(lote_number, item_id, image_path):
     print(f"DEBUG: Intentando guardar imagen en DB: Lote={lote_number}, ID={item_id}, Fecha={capture_date}, Hora={capture_time}, Ruta={image_path}")
     
     try:
+        # Leer la imagen como binario (BLOB)
+        with open(image_path, 'rb') as f:
+            image_blob = f.read()
         cursor.execute(
-            'INSERT INTO captured_images (lote_number, item_id, capture_date, capture_time, image_path) VALUES (?, ?, ?, ?, ?)',
-            (lote_number, item_id, capture_date, capture_time, image_path)
+            'INSERT INTO captured_images (lote_number, item_id, capture_date, capture_time, image_path, image_blob) VALUES (?, ?, ?, ?, ?, ?)',
+            (lote_number, item_id, capture_date, capture_time, image_path, image_blob)
         )
         conn.commit()
-        print(f"DEBUG: Imagen {image_path} guardada exitosamente en la base de datos.")
+        print(f"DEBUG: Imagen {image_path} guardada exitosamente en la base de datos como BLOB.")
     except sqlite3.IntegrityError as e:
         # Esto se activaría si image_path ya existe debido a la restricción UNIQUE
         print(f"ERROR: sqlite3.IntegrityError al guardar imagen {image_path}: {e}. La imagen ya existe o hay un conflicto de clave única.")

@@ -251,7 +251,8 @@ def generate_frames_thread():
                         image_filename = f"{current_lote}-{current_id}-{idx+1}.jpg"
                         image_path = os.path.join(image_dir, image_filename)
                         cv2.imwrite(image_path, frame_to_save)
-                        save_image_db(current_lote, current_id, image_path) # Guardar en la base de datos
+                        # Guardar en la base de datos como BLOB además de la ruta
+                        save_image_db(current_lote, current_id, image_path)
                         photos_taken[idx] = True
                         print(f"DEBUG: Foto {idx+1} capturada y guardada en disco y DB: {image_path}")
                     else:
