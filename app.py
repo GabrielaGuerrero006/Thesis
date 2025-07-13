@@ -1,15 +1,3 @@
-from database import get_images_by_lote_and_id
-###############################################################
-# app.py
-# -------------------------------------------------------------
-# Sistema de Clasificación de Mangos Ataulfo
-# -------------------------------------------------------------
-# Este archivo implementa la lógica principal del backend Flask
-# para el sistema de clasificación de mangos usando modelos YOLO.
-# Permite la captura de video, detección automática por etapas,
-# almacenamiento de resultados y visualización de análisis.
-# -------------------------------------------------------------
-###############################################################
 from flask import Flask, render_template, Response, jsonify, send_from_directory
 from ultralytics import YOLO
 import os
@@ -19,6 +7,7 @@ import random
 import datetime
 import threading
 import sqlite3
+import serial
 from database import (
     init_db, save_detections_db, get_lotes, get_ids_lote,
     get_num_mangos_procesados, get_num_detecciones_lote, get_num_exportables_no_exportables,
@@ -32,7 +21,7 @@ from database import (
     # NUEVAS FUNCIONES PARA ANÁLISIS POR ID
     get_fecha_deteccion_lote_id, get_exportabilidad_mango, get_madurez_mango, get_defectos_mango,
     get_confianza_promedio_exportabilidad_mango, get_confianza_promedio_madurez_mango, get_confianza_promedio_defectos_mango,
-    save_image_db # Importar la nueva función para guardar imágenes
+    save_image_db, get_images_by_lote_and_id # Importar la nueva función para guardar imágenes
 )
 from images import (
     generar_grafico_exportables_pie,
@@ -60,6 +49,7 @@ detection_start_time = None # Tiempo de inicio para la etapa actual del modelo
 overall_detection_start_time = None # Tiempo de inicio para toda la detección
 model_stage = 0 # 0: no iniciado, 1: exportabilidad, 2: madurez, 3: defectos, 4: finalizado
 current_model = None
+arduino_serial = None
 
 # Control de lotes e IDs
 used_lote_numbers = set()  # Números de lote ya usados
@@ -68,6 +58,10 @@ current_lote = None        # Lote actual
 current_id = None          # ID actual
 detections_buffer = []     # Buffer para almacenar todas las detecciones antes de guardar
 photo_taken_for_current_id = False # Controla si ya se tomó la foto para el ID actual
+
+# NUEVAS: Variables globales para los nombres de los modelos
+modelo_nombre_para_global_buffer = "" # Para add_detection_to_buffer (usa .pt)
+current_model_name_for_local_analysis = "" # Para analyze_and_send_signals_to_arduino (sin .pt)
 
 
 # ----------------------
@@ -103,8 +97,90 @@ def generate_id():
     print(f"DEBUG: Nuevo ID generado: {current_id}. photo_taken_for_current_id reseteado a False.")
     return current_id
 
+def setup_arduino_serial(port='COM3', baudrate=9600): # Ajusta el puerto COM según tu Arduino (ej. 'COM3' en Windows, '/dev/ttyACM0' en Linux)
+    """
+    Inicializa la conexión serial con Arduino.
+    """
+    global arduino_serial
+    try:
+        if arduino_serial is None or not arduino_serial.is_open:
+            arduino_serial = serial.Serial(port, baudrate, timeout=1)
+            time.sleep(2)  # Da tiempo a Arduino para reiniciarse después de abrir el puerto serial
+            print(f"DEBUG: Conexión serial con Arduino establecida en {port} a {baudrate} baudios.")
+    except serial.SerialException as e:
+        print(f"ERROR: No se pudo establecer conexión serial con Arduino: {e}")
+        arduino_serial = None
 
+def send_arduino_signal(pin, state):
+    """
+    Envía una señal a Arduino para un pin específico y estado (H para HIGH, L para LOW).
+    Ejemplo: send_arduino_signal(7, 'H')
+    """
+    global arduino_serial
+    if arduino_serial and arduino_serial.is_open:
+        try:
+            signal = f"{pin}{state}\n".encode('utf-8') # Añade un salto de línea para facilitar el parsing en Arduino
+            arduino_serial.write(signal)
+            print(f"DEBUG: Enviado '{signal.decode().strip()}' a Arduino.")
+        except Exception as e:
+            print(f"ERROR: No se pudo enviar señal a Arduino: {e}")
+    else:
+        print("ADVERTENCIA: Conexión serial con Arduino no establecida.")
 
+def analyze_and_send_signals_to_arduino(detections_list, lote, item_id):
+    """
+    Analiza las detecciones de YOLO para un lote e ID específicos y envía señales a Arduino.
+    Esta función ahora recibe directamente las detecciones del mango actual.
+    detections_list: Una lista de listas, donde cada sublista es [lote, ID, fecha, hora, modelo, clase, confianza].
+    """
+    print(f"DEBUG: Iniciando análisis de detecciones para Lote: {lote}, ID: {item_id}")
+
+    # Inicializa contadores para las clases relevantes de cada modelo
+    counts = {
+        'exportabilidad': {'exportable': 0, 'no_exportable': 0},
+        'madurez': {'verde': 0, 'maduro': 0},
+        'defectos': {'con_defecto': 0, 'sin_defecto': 0}
+    }
+
+    # Filtra y cuenta las detecciones
+    for det in detections_list:
+        _lote, _item_id, _date, _time, model_name, class_name, _confidence = det
+        
+        if model_name in counts:
+            if class_name in counts[model_name]:
+                counts[model_name][class_name] += 1
+            else:
+                print(f"ADVERTENCIA: Clase '{class_name}' no esperada para el modelo '{model_name}'.")
+        else:
+            print(f"ADVERTENCIA: Modelo '{model_name}' no esperado en análisis.")
+
+    print(f"DEBUG: Recuento de detecciones: {counts}")
+
+    # Lógica de decisión para el Pin 12 (Ejemplo: Exportabilidad)
+    total_exportabilidad = counts['exportabilidad']['exportable'] + counts['exportabilidad']['no_exportable']
+    if total_exportabilidad > 0:
+        if counts['exportabilidad']['exportable'] > counts['exportabilidad']['no_exportable']:
+            send_arduino_signal(12, 'H') 
+            print("DECISION: Mango probablemente exportable. Señal HIGH en Pin 12.")
+        else:
+            send_arduino_signal(12, 'L') 
+            print("DECISION: Mango probablemente NO exportable. Señal LOW en Pin 12.")
+    else:
+        print("DECISION: No hay detecciones de exportabilidad. Manteniendo Pin 12 en LOW.")
+        send_arduino_signal(12, 'L') 
+
+    # Lógica de decisión para el Pin 13 (Ejemplo: Defectos)
+    total_defectos = counts['defectos']['con_defecto'] + counts['defectos']['sin_defecto']
+    if total_defectos > 0:
+        if counts['defectos']['con_defecto'] > 0: 
+            send_arduino_signal(13, 'H') 
+            print("DECISION: Mango con defectos detectados. Señal HIGH en Pin 13.")
+        else:
+            send_arduino_signal(13, 'L') 
+            print("DECISION: Mango SIN defectos detectados. Señal LOW en Pin 13.")
+    else:
+        print("DECISION: No hay detecciones de defectos. Manteniendo Pin 13 en LOW.")
+        send_arduino_signal(13, 'L')
 
 def save_detections_to_db():
     """
@@ -214,7 +290,7 @@ def process_results(results, model_name):
     return detections
 
 def generate_frames_thread():
-    global camera, camera_running, output_frame, detection_start_time, overall_detection_start_time, model_stage, current_model, photo_taken_for_current_id, current_lote, current_id
+    global camera, camera_running, output_frame, detection_start_time, overall_detection_start_time, model_stage, current_model, photo_taken_for_current_id, current_lote, current_id, modelo_nombre_para_global_buffer, current_model_name_for_local_analysis
 
     try:
         model_stage = 0
@@ -223,10 +299,17 @@ def generate_frames_thread():
         # Definir los tiempos de duración para cada etapa del modelo
         duration_stage1 = 7  # Segundos para el modelo de exportabilidad
         duration_stage_others = 5 # Segundos para los modelos de madurez y defectos
+        total_processing_duration = duration_stage1 + (2 * duration_stage_others) # 7 + 5 + 5 = 17 seconds
 
         # Tiempos para tomar las 4 fotos (en segundos desde el inicio)
         photo_capture_times = [4, 8, 12, 16]
         photos_taken = [False, False, False, False]  # Controla si ya se tomó cada foto
+
+        # NUEVA: Lista local para almacenar detecciones del mango actual
+        current_mango_detections_local = []
+        
+        # Mantener un registro del ID del mango que se está procesando actualmente en la lista local
+        local_processing_mango_id = None 
 
         while camera_running:
             if not camera or not camera.isOpened():
@@ -240,10 +323,44 @@ def generate_frames_thread():
             elapsed_time_current_stage = current_time - (detection_start_time if detection_start_time is not None else current_time)
             # Tiempo transcurrido desde el inicio general de la detección
             elapsed_time_overall = current_time - (overall_detection_start_time if overall_detection_start_time is not None else current_time)
+            
+            # Si el current_id global ha cambiado, significa que un nuevo mango está comenzando.
+            # Esto resetea el buffer local y establece el ID de procesamiento local.
+            # Esto ocurrirá cuando se presione "Iniciar" nuevamente.
+            if local_processing_mango_id != current_id:
+                if len(current_mango_detections_local) > 0:
+                    # Si había detecciones para un mango anterior que no fue procesado explícitamente
+                    print(f"ADVERTENCIA: Mango {local_processing_mango_id} no fue analizado localmente antes de cambiar a {current_id}. Analizando ahora.")
+                    analyze_and_send_signals_to_arduino(current_mango_detections_local, current_lote, local_processing_mango_id)
+                current_mango_detections_local = []
+                local_processing_mango_id = current_id
+                print(f"DEBUG: Nuevo mango ({current_id}) detectado, reiniciando buffer local de detecciones.")
+                # Resetear el control de fotos para el nuevo mango
+                photos_taken = [False, False, False, False]
+
+            # Lógica para detener el proceso después de que haya transcurrido el tiempo total de procesamiento.
+            # Esto asegura que el análisis final se realice y luego el sistema se detenga.
+            if overall_detection_start_time is not None and elapsed_time_overall >= total_processing_duration:
+                print(f"DEBUG: Tiempo total de procesamiento ({total_processing_duration}s) transcurrido para mango ID: {local_processing_mango_id}. Finalizando ciclo de detección.")
+                
+                # Realizar análisis inmediato para el mango actual antes de detener
+                if len(current_mango_detections_local) > 0:
+                    print(f"DEBUG: Mango {local_processing_mango_id} procesado completamente por los 3 modelos. Iniciando análisis local de Arduino.")
+                    analyze_and_send_signals_to_arduino(current_mango_detections_local, current_lote, local_processing_mango_id)
+                else:
+                    print(f"DEBUG: No se detectaron objetos para el mango {local_processing_mango_id} a lo largo de las etapas de los modelos (antes de detener).")
+
+                # Limpiar el buffer local
+                current_mango_detections_local = []
+                local_processing_mango_id = None 
+                
+                stop_detection() # Esto establecerá camera_running en False
+                print("DEBUG: Detección detenida por tiempo total transcurrido.")
+                break # Salir del bucle while para terminar el thread
 
             # Lógica para tomar las 4 fotos en los tiempos definidos
             for idx, capture_time in enumerate(photo_capture_times):
-                if not photos_taken[idx] and elapsed_time_overall >= capture_time:
+                if not photos_taken[idx] and overall_detection_start_time is not None and elapsed_time_overall >= capture_time:
                     print(f"DEBUG: Condición para tomar foto {idx+1} cumplida. Tiempo total: {elapsed_time_overall:.2f}s.")
                     success_frame, frame_to_save = camera.read()
                     if success_frame:
@@ -259,32 +376,48 @@ def generate_frames_thread():
                     else:
                         print(f"ADVERTENCIA: No se pudo capturar el frame para guardar la foto {idx+1}.")
 
+            # Transiciones de etapa del modelo y asignación de current_model
+            # Estas variables son globales y se asignan solo en las transiciones de etapa
+            # NO deben inicializarse a "" en cada iteración del bucle.
+
             if model_stage == 0:
                 model_stage = 1
                 current_model = YOLO('exportabilidad.pt')
                 detection_start_time = time.time() # Establecer el inicio para esta etapa
+                # overall_detection_start_time ya se inicializa en start_camera para el inicio del ciclo.
+                # Asegurarse de que no sea None si el thread se inicia de alguna otra forma (safety check)
+                if overall_detection_start_time is None:
+                    overall_detection_start_time = time.time() 
                 print("DEBUG: Cargando modelo de exportabilidad.")
+                # Asignar los valores a las variables globales
+                modelo_nombre_para_global_buffer = "exportabilidad.pt"
+                current_model_name_for_local_analysis = "exportabilidad"
 
-            elif model_stage == 1 and elapsed_time_current_stage >= duration_stage1 and camera_running:
+            elif model_stage == 1 and elapsed_time_current_stage >= duration_stage1:
                 print(f"DEBUG: Cambiando a modelo de madurez. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
                 model_stage = 2
                 current_model = YOLO('madurez.pt')
                 detection_start_time = current_time # Reiniciar el tiempo para la nueva etapa
+                # Asignar los valores a las variables globales
+                modelo_nombre_para_global_buffer = "madurez.pt"
+                current_model_name_for_local_analysis = "madurez"
 
-            elif model_stage == 2 and elapsed_time_current_stage >= duration_stage_others and camera_running:
+            elif model_stage == 2 and elapsed_time_current_stage >= duration_stage_others:
                 print(f"DEBUG: Cambiando a modelo de defectos. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
                 model_stage = 3
                 current_model = YOLO('defectos.pt')
                 detection_start_time = current_time # Reiniciar el tiempo para la nueva etapa
+                # Asignar los valores a las variables globales
+                modelo_nombre_para_global_buffer = "defectos.pt"
+                current_model_name_for_local_analysis = "defectos"
 
-            elif model_stage == 3 and elapsed_time_current_stage >= duration_stage_others and camera_running:
-                print(f"DEBUG: Finalizando detección automáticamente. Tiempo transcurrido en etapa: {elapsed_time_current_stage:.2f}s")
-                model_stage = 4 # Marcar como finalizado antes de detener
-                stop_detection()
-                break # Salir del bucle while
+            # Nota: El bloque anterior para `model_stage == 3` que reiniciaba el ciclo
+            # ha sido eliminado. Ahora, una vez que el modelo de defectos termina su tiempo,
+            # el control pasará a la verificación de `total_processing_duration` al inicio del bucle
+            # para detener el sistema.
 
             if not camera_running:
-                print("DEBUG: camera_running es False, saliendo del bucle de frames.")
+                print("DEBUG: camera_running es False, saliendo del bucle de frames (después de transiciones de modelo).")
                 break
 
             success, frame = camera.read()
@@ -297,21 +430,22 @@ def generate_frames_thread():
                 try:
                     results = current_model.predict(frame, conf=0.85)
                     
-                    # Determinar el nombre del modelo actual
-                    modelo_nombre = ""
-                    if model_stage == 1:
-                        modelo_nombre = "exportabilidad.pt"
-                    elif model_stage == 2:
-                        modelo_nombre = "madurez.pt"
-                    elif model_stage == 3:
-                        modelo_nombre = "defectos.pt"
-                    
-                    # Procesar resultados y añadir al buffer
-                    detections = process_results(results, modelo_nombre)
-                    
+                    # Procesar resultados y añadir al buffer global
+                    detections_from_model = process_results(results, modelo_nombre_para_global_buffer) 
+
+                    # ADICIÓN: Rellenar current_mango_detections_local con el nombre simplificado del modelo
+                    current_time_for_detection = datetime.datetime.now()
+                    date_str_for_detection = current_time_for_detection.strftime('%Y-%m-%d')
+                    time_str_for_detection = current_time_for_detection.strftime('%H:%M:%S')
+
+                    if len(detections_from_model) > 0:
+                        for det_class_name, det_confidence in detections_from_model:
+                            current_mango_detections_local.append([current_lote, current_id, date_str_for_detection, time_str_for_detection, current_model_name_for_local_analysis, det_class_name, det_confidence])
+                            
                     annotated_frame = results[0].plot()
 
-                    modelo_texto = ""
+                    # Texto para la visualización en el frame
+                    modelo_texto = "" 
                     if model_stage == 1:
                         modelo_texto = "Modelo: exportabilidad.pt"
                     elif model_stage == 2:
@@ -320,20 +454,27 @@ def generate_frames_thread():
                         modelo_texto = "Modelo: defectos.pt"
 
                     # Calcular el tiempo restante basado en la etapa actual
-                    tiempo_restante = 0
+                    tiempo_restante_etapa = 0
                     if model_stage == 1:
-                        tiempo_restante = duration_stage1 - elapsed_time_current_stage
+                        tiempo_restante_etapa = duration_stage1 - elapsed_time_current_stage
                     elif model_stage in [2, 3]:
-                        tiempo_restante = duration_stage_others - elapsed_time_current_stage
+                        tiempo_restante_etapa = duration_stage_others - elapsed_time_current_stage
                     
-                    # Asegurarse de que tiempo_restante no sea negativo para la visualización
-                    tiempo_restante = max(0, tiempo_restante)
+                    # Asegurarse de que tiempo_restante_etapa no sea negativo para la visualización
+                    tiempo_restante_etapa = max(0, tiempo_restante_etapa)
+
+                    # Tiempo total restante para la detección completa (hasta los 17 segundos)
+                    tiempo_total_restante = total_processing_duration - elapsed_time_overall
+                    tiempo_total_restante = max(0, tiempo_total_restante)
 
                     # Mostrar información del lote y ID en el frame
                     cv2.putText(annotated_frame, f"Lote: {current_lote} | ID: {current_id}",
                                  (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                    cv2.putText(annotated_frame, f"{modelo_texto} - Tiempo restante: {tiempo_restante:.1f}s",
+                    cv2.putText(annotated_frame, f"{modelo_texto} - Etapa Restante: {tiempo_restante_etapa:.1f}s",
                                  (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f"Total Restante: {tiempo_total_restante:.1f}s",
+                                 (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
 
                     with lock:
                         ret, buffer = cv2.imencode('.jpg', annotated_frame)
@@ -388,6 +529,9 @@ def video_feed():
 @app.route('/start_camera')
 def start_camera():
     global camera, camera_running, model_stage, current_model, detection_thread, current_lote, current_id, photo_taken_for_current_id, overall_detection_start_time, detection_start_time
+    # Asegúrate de incluir las nuevas variables globales aquí también, si se inicializan al inicio
+    global modelo_nombre_para_global_buffer, current_model_name_for_local_analysis
+    
     try:
         if camera_running:
             return jsonify({"status": "warning", "message": "La cámara ya está en funcionamiento"})
@@ -411,6 +555,12 @@ def start_camera():
         current_model = None
         overall_detection_start_time = time.time() # Establecer el tiempo de inicio general
         detection_start_time = time.time() # Inicializar detection_start_time aquí también
+
+        # Inicializar los nombres de los modelos para el primer ciclo del mango
+        # Esto es importante para que tengan un valor desde el principio
+        modelo_nombre_para_global_buffer = "" 
+        current_model_name_for_local_analysis = ""
+
         detection_thread = threading.Thread(target=generate_frames_thread)
         detection_thread.start()
         
@@ -683,4 +833,5 @@ def obtener_imagenes_mango(lote_number, item_id):
         })
 
 if __name__ == '__main__':
+    setup_arduino_serial()
     app.run(debug=True, host='0.0.0.0', port=5000)
