@@ -146,41 +146,53 @@ def analyze_and_send_signals_to_arduino(detections_list, lote, item_id):
     for det in detections_list:
         _lote, _item_id, _date, _time, model_name, class_name, _confidence = det
         
-        if model_name in counts:
-            if class_name in counts[model_name]:
-                counts[model_name][class_name] += 1
-            else:
-                print(f"ADVERTENCIA: Clase '{class_name}' no esperada para el modelo '{model_name}'.")
+        # Ensure the model_name is processed correctly from the simplified local analysis name
+        if model_name == 'exportabilidad':
+            if class_name == 'exportable':
+                counts['exportabilidad']['exportable'] += 1
+            elif class_name == 'no_exportable':
+                counts['exportabilidad']['no_exportable'] += 1
+        elif model_name == 'madurez':
+            if class_name == 'mango_verde': # Assuming 'mango_verde' corresponds to 'verde'
+                counts['madurez']['verde'] += 1
+            elif class_name == 'mango_maduro': # Assuming 'mango_maduro' corresponds to 'maduro'
+                counts['madurez']['maduro'] += 1
+        elif model_name == 'defectos':
+            if class_name == 'mango_con_defectos': # Assuming 'mango_con_defectos' corresponds to 'con_defecto'
+                counts['defectos']['con_defecto'] += 1
+            elif class_name == 'mango_sin_defectos': # Assuming 'mango_sin_defectos' corresponds to 'sin_defecto'
+                counts['defectos']['sin_defecto'] += 1
+        elif class_name == 'no detections': # Handle cases where no objects were detected
+            pass
         else:
-            print(f"ADVERTENCIA: Modelo '{model_name}' no esperado en análisis.")
+            print(f"ADVERTENCIA: Clase '{class_name}' no esperada para el modelo '{model_name}'.")
 
     print(f"DEBUG: Recuento de detecciones: {counts}")
 
-    # Lógica de decisión para el Pin 12 (Ejemplo: Exportabilidad)
-    total_exportabilidad = counts['exportabilidad']['exportable'] + counts['exportabilidad']['no_exportable']
-    if total_exportabilidad > 0:
-        if counts['exportabilidad']['exportable'] > counts['exportabilidad']['no_exportable']:
-            send_arduino_signal(12, 'H') 
-            print("DECISION: Mango probablemente exportable. Señal HIGH en Pin 12.")
-        else:
-            send_arduino_signal(12, 'L') 
-            print("DECISION: Mango probablemente NO exportable. Señal LOW en Pin 12.")
-    else:
-        print("DECISION: No hay detecciones de exportabilidad. Manteniendo Pin 12 en LOW.")
-        send_arduino_signal(12, 'L') 
+    # Lógica de decisión para el Pin 12 (Exportable)
+    # Condiciones para exportable:
+    # 1. exportable > no_exportable
+    # 2. verde > maduro
+    # 3. sin_defecto > con_defecto
+    is_exportable_candidate = (
+        counts['exportabilidad']['exportable'] > counts['exportabilidad']['no_exportable'] and
+        counts['madurez']['verde'] > counts['madurez']['maduro'] and
+        counts['defectos']['sin_defecto'] > counts['defectos']['con_defecto']
+    )
 
-    # Lógica de decisión para el Pin 13 (Ejemplo: Defectos)
-    total_defectos = counts['defectos']['con_defecto'] + counts['defectos']['sin_defecto']
-    if total_defectos > 0:
-        if counts['defectos']['con_defecto'] > 0: 
-            send_arduino_signal(13, 'H') 
-            print("DECISION: Mango con defectos detectados. Señal HIGH en Pin 13.")
-        else:
-            send_arduino_signal(13, 'L') 
-            print("DECISION: Mango SIN defectos detectados. Señal LOW en Pin 13.")
+    # Lógica de decisión para el Pin 13 (No Exportable)
+    # Prioritizamos la lógica de Pin 12. Si no es exportable, por defecto se activa Pin 13.
+    if is_exportable_candidate:
+        send_arduino_signal(13, 'L') # Asegurarse de que Pin 13 esté en LOW
+        send_arduino_signal(12, 'H') # Activar Pin 12
+        print("DECISION: Mango probablemente exportable. Señal HIGH en Pin 12.")
+        threading.Timer(5, send_arduino_signal, args=(12, 'L')).start() # Desactivar después de 5 segundos
     else:
-        print("DECISION: No hay detecciones de defectos. Manteniendo Pin 13 en LOW.")
-        send_arduino_signal(13, 'L')
+        send_arduino_signal(12, 'L') # Asegurarse de que Pin 12 esté en LOW
+        send_arduino_signal(13, 'H') # Activar Pin 13 como no exportable
+        print("DECISION: Mango probablemente NO exportable. Señal HIGH en Pin 13.")
+        threading.Timer(5, send_arduino_signal, args=(13, 'L')).start() # Desactivar después de 5 segundos
+
 
 def save_detections_to_db():
     """
@@ -331,18 +343,29 @@ def generate_frames_thread():
                 if len(current_mango_detections_local) > 0:
                     # Si había detecciones para un mango anterior que no fue procesado explícitamente
                     print(f"ADVERTENCIA: Mango {local_processing_mango_id} no fue analizado localmente antes de cambiar a {current_id}. Analizando ahora.")
+                    # Ensure Pin 7 is LOW before starting analysis for the previous mango, if it wasn't already.
+                    send_arduino_signal(7, 'L')
                     analyze_and_send_signals_to_arduino(current_mango_detections_local, current_lote, local_processing_mango_id)
                 current_mango_detections_local = []
                 local_processing_mango_id = current_id
                 print(f"DEBUG: Nuevo mango ({current_id}) detectado, reiniciando buffer local de detecciones.")
                 # Resetear el control de fotos para el nuevo mango
                 photos_taken = [False, False, False, False]
+                # NEW: Send HIGH to Pin 7 when a new mango's processing cycle starts
+                send_arduino_signal(7, 'H')
+                print("DEBUG: Signal HIGH to Pin 7 (detection started for new mango).")
+
 
             # Lógica para detener el proceso después de que haya transcurrido el tiempo total de procesamiento.
             # Esto asegura que el análisis final se realice y luego el sistema se detenga.
             if overall_detection_start_time is not None and elapsed_time_overall >= total_processing_duration:
                 print(f"DEBUG: Tiempo total de procesamiento ({total_processing_duration}s) transcurrido para mango ID: {local_processing_mango_id}. Finalizando ciclo de detección.")
                 
+                # NEW: Send LOW to Pin 7 before analysis and stopping
+                send_arduino_signal(7, 'L')
+                print("DEBUG: Signal LOW to Pin 7 (detection finished for this mango).")
+                time.sleep(1)
+
                 # Realizar análisis inmediato para el mango actual antes de detener
                 if len(current_mango_detections_local) > 0:
                     print(f"DEBUG: Mango {local_processing_mango_id} procesado completamente por los 3 modelos. Iniciando análisis local de Arduino.")

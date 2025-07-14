@@ -522,11 +522,11 @@ def get_exportabilidad_mango(lote_number, item_id):
     exportable = sum(1 for r in resultados if r == 'exportable')
     no_exportable = sum(1 for r in resultados if r == 'no_exportable')
     nulo = sum(1 for r in resultados if r == 'no detections')
-    if exportable / total >= 0.8:
+    if exportable / total >= 0.5:
         return 'Exportable'
-    elif no_exportable / total >= 0.8:
+    elif no_exportable / total >= 0.5:
         return 'No Exportable'
-    elif nulo / total >= 0.8:
+    elif nulo / total >= 0.5:
         return 'Nulo'
     else:
         return 'Sin datos suficientes'
@@ -551,11 +551,11 @@ def get_madurez_mango(lote_number, item_id):
     verde = sum(1 for r in resultados if r == 'mango_verde')
     maduro = sum(1 for r in resultados if r == 'mango_maduro')
     nulo = sum(1 for r in resultados if r == 'no detections')
-    if verde / total >= 0.8:
+    if verde / total >= 0.5:
         return 'Verde'
-    elif maduro / total >= 0.8:
+    elif maduro / total >= 0.5:
         return 'Maduro'
-    elif nulo / total >= 0.8:
+    elif nulo / total >= 0.5:
         return 'Nulo'
     else:
         return 'Sin datos suficientes'
@@ -577,14 +577,14 @@ def get_defectos_mango(lote_number, item_id):
     if not resultados:
         return 'Sin datos suficientes'
     total = len(resultados)
-    sin_defectos = sum(1 for r in resultados if r == 'mango_sin_defecto')
+    sin_defectos = sum(1 for r in resultados if r == 'mango_sin_defectos')
     con_defectos = sum(1 for r in resultados if r == 'mango_con_defectos')
     nulo = sum(1 for r in resultados if r == 'no detections')
-    if sin_defectos / total >= 0.8:
+    if sin_defectos / total >= 0.5:
         return 'No'
-    elif con_defectos / total >= 0.8:
+    elif con_defectos / total >= 0.5:
         return 'Si'
-    elif nulo / total >= 0.8:
+    elif nulo / total >= 0.5:
         return 'Nulo'
     else:
         return 'Sin datos suficientes'
