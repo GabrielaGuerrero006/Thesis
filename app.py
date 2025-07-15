@@ -97,7 +97,7 @@ def generate_id():
     print(f"DEBUG: Nuevo ID generado: {current_id}. photo_taken_for_current_id reseteado a False.")
     return current_id
 
-def setup_arduino_serial(port='COM3', baudrate=9600): # Ajusta el puerto COM según tu Arduino (ej. 'COM3' en Windows, '/dev/ttyACM0' en Linux)
+def setup_arduino_serial(port='COM7', baudrate=9600): # Ajusta el puerto COM según tu Arduino (ej. 'COM3' en Windows, '/dev/ttyACM0' en Linux)
     """
     Inicializa la conexión serial con Arduino.
     """
@@ -181,7 +181,7 @@ def analyze_and_send_signals_to_arduino(detections_list, lote, item_id):
     )
 
     # Lógica de decisión para el Pin 13 (No Exportable)
-    # Prioritizamos la lógica de Pin 12. Si no es exportable, por defecto se activa Pin 13.
+    # Priorizamos la lógica de Pin 12. Si no es exportable, por defecto se activa Pin 13.
     if is_exportable_candidate:
         send_arduino_signal(13, 'L') # Asegurarse de que Pin 13 esté en LOW
         send_arduino_signal(12, 'H') # Activar Pin 12
@@ -243,7 +243,7 @@ def init_camera():
     try:
         if camera is not None:
             camera.release()
-        camera = cv2.VideoCapture(0)
+        camera = cv2.VideoCapture(1)
         if not camera.isOpened():
             raise Exception("No se pudo abrir la cámara")
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -345,6 +345,8 @@ def generate_frames_thread():
                     print(f"ADVERTENCIA: Mango {local_processing_mango_id} no fue analizado localmente antes de cambiar a {current_id}. Analizando ahora.")
                     # Ensure Pin 7 is LOW before starting analysis for the previous mango, if it wasn't already.
                     send_arduino_signal(7, 'L')
+                    # ADDED DELAY HERE
+                    time.sleep(1) # Added 1 second delay
                     analyze_and_send_signals_to_arduino(current_mango_detections_local, current_lote, local_processing_mango_id)
                 current_mango_detections_local = []
                 local_processing_mango_id = current_id
@@ -364,7 +366,8 @@ def generate_frames_thread():
                 # NEW: Send LOW to Pin 7 before analysis and stopping
                 send_arduino_signal(7, 'L')
                 print("DEBUG: Signal LOW to Pin 7 (detection finished for this mango).")
-                time.sleep(1)
+                # ADDED DELAY HERE
+                time.sleep(1) # Added 1 second delay
 
                 # Realizar análisis inmediato para el mango actual antes de detener
                 if len(current_mango_detections_local) > 0:
@@ -856,5 +859,7 @@ def obtener_imagenes_mango(lote_number, item_id):
         })
 
 if __name__ == '__main__':
-    setup_arduino_serial()
+    # Add this check to prevent multiple serial port connections in debug mode
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        setup_arduino_serial()
     app.run(debug=True, host='0.0.0.0', port=5000)
