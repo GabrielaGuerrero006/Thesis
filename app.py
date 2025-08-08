@@ -6,7 +6,6 @@ import time
 import random
 import datetime
 import threading
-import sqlite3
 import serial
 from database import (
     init_db, save_detections_db, get_lotes, get_ids_lote,

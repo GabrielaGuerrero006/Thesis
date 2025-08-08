@@ -1,7 +1,6 @@
 import base64
 import sqlite3
 import os
-import pandas as pd
 from datetime import datetime
 
 #Ruta de la BD
@@ -166,53 +165,158 @@ def get_num_detecciones_lote(lote_number):
 
 def get_num_exportables_no_exportables(lote_number):
     """
-    Retorna el número de detecciones de mangos exportables y no exportables para un lote dado.
+    Retorna el número de detecciones de mangos exportables y no exportables para un lote dado,
+    aplicando un filtro de "mayoría de votos" por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
         dict: {'exportable': int, 'no_exportable': int}
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'exportable'))
-    exportable = cursor.fetchone()[0]
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'no_exportable'))
-    no_exportable = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'exportable' THEN 1 ELSE 0 END) AS exportable_count,
+                SUM(CASE WHEN detection_type = 'no_exportable' THEN 1 ELSE 0 END) AS no_exportable_count
+            FROM
+                detections
+            WHERE
+                lote_number = ?
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN T2.detection_type = 'exportable' AND T1.exportable_count > T1.no_exportable_count THEN 1 ELSE 0 END) AS exportables,
+            SUM(CASE WHEN T2.detection_type = 'no_exportable' AND T1.no_exportable_count > T1.exportable_count THEN 1 ELSE 0 END) AS no_exportables
+        FROM
+            item_votes AS T1
+        JOIN
+            detections AS T2 ON T1.item_id = T2.item_id
+        WHERE
+            T2.lote_number = ?;
+        """
+        
+        cursor.execute(query, (int(lote_number), int(lote_number)))
+        result = cursor.fetchone()
+
+        exportable = result[0] if result[0] is not None else 0
+        no_exportable = result[1] if result[1] is not None else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        exportable = 0
+        no_exportable = 0
+    finally:
+        conn.close()
+
     return {'exportable': exportable, 'no_exportable': no_exportable}
 
 def get_num_verdes_maduros(lote_number):
     """
-    Retorna el número de detecciones de mangos verdes y maduros para un lote dado.
+    Retorna el número de detecciones de mangos verdes y maduros para un lote dado,
+    aplicando un filtro de "mayoría de votos" por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
         dict: {'mango_verde': int, 'mango_maduro': int}
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'mango_verde'))
-    mango_verde = cursor.fetchone()[0]
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'mango_maduro'))
-    mango_maduro = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_verde' THEN 1 ELSE 0 END) AS verde_count,
+                SUM(CASE WHEN detection_type = 'mango_maduro' THEN 1 ELSE 0 END) AS maduro_count
+            FROM
+                detections
+            WHERE
+                lote_number = ?
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN T2.detection_type = 'mango_verde' AND T1.verde_count > T1.maduro_count THEN 1 ELSE 0 END) AS verdes,
+            SUM(CASE WHEN T2.detection_type = 'mango_maduro' AND T1.maduro_count > T1.verde_count THEN 1 ELSE 0 END) AS maduros
+        FROM
+            item_votes AS T1
+        JOIN
+            detections AS T2 ON T1.item_id = T2.item_id
+        WHERE
+            T2.lote_number = ?;
+        """
+        
+        cursor.execute(query, (int(lote_number), int(lote_number)))
+        result = cursor.fetchone()
+
+        mango_verde = result[0] if result[0] is not None else 0
+        mango_maduro = result[1] if result[1] is not None else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        mango_verde = 0
+        mango_maduro = 0
+    finally:
+        conn.close()
+
     return {'mango_verde': mango_verde, 'mango_maduro': mango_maduro}
 
 def get_num_con_defectos_sin_defectos(lote_number):
     """
-    Retorna el número de detecciones de mangos con y sin defectos para un lote dado.
+    Retorna el número de detecciones de mangos con y sin defectos para un lote dado,
+    aplicando un filtro de "mayoría de votos" por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        dict: _defectos': int, 'mango_sin_defectos': int}
+        dict: {'mango_con_defectos': int, 'mango_sin_defectos': int}
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'mango_con_defectos'))
-    mango_con_defectos = cursor.fetchone()[0]
-    cursor.execute('SELECT COUNT(*) FROM detections WHERE lote_number = ? AND detection_type = ?', (int(lote_number), 'mango_sin_defectos'))
-    mango_sin_defectos = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_con_defectos' THEN 1 ELSE 0 END) AS con_defectos_count,
+                SUM(CASE WHEN detection_type = 'mango_sin_defectos' THEN 1 ELSE 0 END) AS sin_defectos_count
+            FROM
+                detections
+            WHERE
+                lote_number = ?
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN T2.detection_type = 'mango_con_defectos' AND T1.con_defectos_count > T1.sin_defectos_count THEN 1 ELSE 0 END) AS con_defectos,
+            SUM(CASE WHEN T2.detection_type = 'mango_sin_defectos' AND T1.sin_defectos_count > T1.con_defectos_count THEN 1 ELSE 0 END) AS sin_defectos
+        FROM
+            item_votes AS T1
+        JOIN
+            detections AS T2 ON T1.item_id = T2.item_id
+        WHERE
+            T2.lote_number = ?;
+        """
+        
+        cursor.execute(query, (int(lote_number), int(lote_number)))
+        result = cursor.fetchone()
+
+        mango_con_defectos = result[0] if result[0] is not None else 0
+        mango_sin_defectos = result[1] if result[1] is not None else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        mango_con_defectos = 0
+        mango_sin_defectos = 0
+    finally:
+        conn.close()
+
     return {'mango_con_defectos': mango_con_defectos, 'mango_sin_defectos': mango_sin_defectos}
 
 def get_fecha_procesado_lote(lote_number):
@@ -304,171 +408,537 @@ def get_confianza_promedio_defectos(lote_number):
 
 def get_cantidad_mangos_exportables_lote(lote_number):
     """
-    Retorna la cantidad de mangos exportables del lote usando el modelo exportabilidad.pt.
+    Retorna la cantidad de mangos únicos clasificados como exportables
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'exportable' y model_name = 'exportabilidad.pt'
+        int: Cantidad de mangos únicos de tipo 'exportable'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'exportabilidad.pt', 'exportable'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'exportable' THEN 1 ELSE 0 END) AS exportable_count,
+                SUM(CASE WHEN detection_type = 'no_exportable' THEN 1 ELSE 0 END) AS no_exportable_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'exportabilidad.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            exportable_count > no_exportable_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_cantidad_mangos_no_exportables_lote(lote_number):
     """
-    Retorna la cantidad de mangos no exportables del lote usando el modelo exportabilidad.pt.
+    Retorna la cantidad de mangos únicos clasificados como no exportables
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'no_exportable' y model_name = 'exportabilidad.pt'
+        int: Cantidad de mangos únicos de tipo 'no_exportable'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'exportabilidad.pt', 'no_exportable'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'exportable' THEN 1 ELSE 0 END) AS exportable_count,
+                SUM(CASE WHEN detection_type = 'no_exportable' THEN 1 ELSE 0 END) AS no_exportable_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'exportabilidad.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            no_exportable_count > exportable_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_cantidad_mangos_maduros_lote(lote_number):
     """
-    Retorna la cantidad de mangos maduros del lote usando el modelo madurez.pt.
+    Retorna la cantidad de mangos únicos clasificados como maduros
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'mango_maduro' y model_name = 'madurez.pt'
+        int: Cantidad de mangos únicos de tipo 'mango_maduro'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'madurez.pt', 'mango_maduro'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_maduro' THEN 1 ELSE 0 END) AS maduro_count,
+                SUM(CASE WHEN detection_type = 'mango_verde' THEN 1 ELSE 0 END) AS verde_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'madurez.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            maduro_count > verde_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_cantidad_mangos_verdes_lote(lote_number):
     """
-    Retorna la cantidad de mangos verdes del lote usando el modelo madurez.pt.
+    Retorna la cantidad de mangos únicos clasificados como verdes
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'mango_verde' y model_name = 'madurez.pt'
+        int: Cantidad de mangos únicos de tipo 'mango_verde'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'madurez.pt', 'mango_verde'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_verde' THEN 1 ELSE 0 END) AS verde_count,
+                SUM(CASE WHEN detection_type = 'mango_maduro' THEN 1 ELSE 0 END) AS maduro_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'madurez.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            verde_count > maduro_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_cantidad_mangos_con_defecto_lote(lote_number):
     """
-    Retorna la cantidad de mangos con defecto del lote usando el modelo defectos.pt.
+    Retorna la cantidad de mangos únicos clasificados con defecto
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'mango_con_defecto' y model_name = 'defectos.pt'
+        int: Cantidad de mangos únicos de tipo 'mango_con_defectos'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defectos'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_con_defectos' THEN 1 ELSE 0 END) AS con_defectos_count,
+                SUM(CASE WHEN detection_type = 'mango_sin_defectos' THEN 1 ELSE 0 END) AS sin_defectos_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'defectos.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            con_defectos_count > sin_defectos_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_cantidad_mangos_sin_defecto_lote(lote_number):
     """
-    Retorna la cantidad de mangos sin defecto del lote usando el modelo defectos.pt.
+    Retorna la cantidad de mangos únicos clasificados sin defecto
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     Args:
-        lote_number (str o int): Número de lote seleccionado por el usuario
+        lote_number (str o int): Número de lote seleccionado por el usuario.
     Returns:
-        int: cantidad de registros con detection_type = 'mango_sin_defecto' y model_name = 'defectos.pt'
+        int: Cantidad de mangos únicos de tipo 'mango_sin_defectos'.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(DISTINCT item_id) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defectos'))
-    cantidad = cursor.fetchone()[0]
-    conn.close()
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_sin_defectos' THEN 1 ELSE 0 END) AS sin_defectos_count,
+                SUM(CASE WHEN detection_type = 'mango_con_defectos' THEN 1 ELSE 0 END) AS con_defectos_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'defectos.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            COUNT(item_id)
+        FROM
+            item_votes
+        WHERE
+            sin_defectos_count > con_defectos_count;
+        """
+        
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+        cantidad = result[0] if result else 0
+        
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        cantidad = 0
+    finally:
+        conn.close()
+
     return cantidad
 
 def get_porcentaje_mangos_exportables_lote(lote_number):
     """
-    Retorna el porcentaje de mangos exportables del lote usando el modelo exportabilidad.pt.
+    Retorna el porcentaje de mangos únicos clasificados como exportables
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'exportabilidad.pt', 'exportable', 'no_exportable'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'exportabilidad.pt', 'exportable'))
-    exportable = cursor.fetchone()[0]
-    conn.close()
-    return round((exportable / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'exportable' THEN 1 ELSE 0 END) AS exportable_count,
+                SUM(CASE WHEN detection_type = 'no_exportable' THEN 1 ELSE 0 END) AS no_exportable_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'exportabilidad.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN exportable_count > no_exportable_count THEN 1 ELSE 0 END) AS exportable_mangos,
+            SUM(CASE WHEN no_exportable_count > exportable_count THEN 1 ELSE 0 END) AS no_exportable_mangos
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        exportable_mangos = result[0] if result and result[0] is not None else 0
+        no_exportable_mangos = result[1] if result and result[1] is not None else 0
+        total_mangos = exportable_mangos + no_exportable_mangos
+        
+        return round((exportable_mangos / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_porcentaje_mangos_no_exportables_lote(lote_number):
     """
-    Retorna el porcentaje de mangos no exportables del lote usando el modelo exportabilidad.pt.
+    Retorna el porcentaje de mangos únicos clasificados como no exportables
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'exportabilidad.pt', 'exportable', 'no_exportable'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'exportabilidad.pt', 'no_exportable'))
-    no_exportable = cursor.fetchone()[0]
-    conn.close()
-    return round((no_exportable / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'exportable' THEN 1 ELSE 0 END) AS exportable_count,
+                SUM(CASE WHEN detection_type = 'no_exportable' THEN 1 ELSE 0 END) AS no_exportable_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'exportabilidad.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN exportable_count > no_exportable_count THEN 1 ELSE 0 END) AS exportable_mangos,
+            SUM(CASE WHEN no_exportable_count > exportable_count THEN 1 ELSE 0 END) AS no_exportable_mangos
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        exportable_mangos = result[0] if result and result[0] is not None else 0
+        no_exportable_mangos = result[1] if result and result[1] is not None else 0
+        total_mangos = exportable_mangos + no_exportable_mangos
+        
+        return round((no_exportable_mangos / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_porcentaje_mangos_verdes_lote(lote_number):
     """
-    Retorna el porcentaje de mangos verdes del lote usando el modelo madurez.pt.
+    Retorna el porcentaje de mangos únicos clasificados como verdes
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'madurez.pt', 'mango_verde', 'mango_maduro'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'madurez.pt', 'mango_verde'))
-    mango_verde = cursor.fetchone()[0]
-    conn.close()
-    return round((mango_verde / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_verde' THEN 1 ELSE 0 END) AS verde_count,
+                SUM(CASE WHEN detection_type = 'mango_maduro' THEN 1 ELSE 0 END) AS maduro_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'madurez.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN verde_count > maduro_count THEN 1 ELSE 0 END) AS mangos_verdes,
+            SUM(CASE WHEN maduro_count > verde_count THEN 1 ELSE 0 END) AS mangos_maduros
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        mangos_verdes = result[0] if result and result[0] is not None else 0
+        mangos_maduros = result[1] if result and result[1] is not None else 0
+        total_mangos = mangos_verdes + mangos_maduros
+        
+        return round((mangos_verdes / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_porcentaje_mangos_maduros_lote(lote_number):
     """
-    Retorna el porcentaje de mangos maduros del lote usando el modelo madurez.pt.
+    Retorna el porcentaje de mangos únicos clasificados como maduros
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'madurez.pt', 'mango_verde', 'mango_maduro'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'madurez.pt', 'mango_maduro'))
-    mango_maduro = cursor.fetchone()[0]
-    conn.close()
-    return round((mango_maduro / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_verde' THEN 1 ELSE 0 END) AS verde_count,
+                SUM(CASE WHEN detection_type = 'mango_maduro' THEN 1 ELSE 0 END) AS maduro_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'madurez.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN verde_count > maduro_count THEN 1 ELSE 0 END) AS mangos_verdes,
+            SUM(CASE WHEN maduro_count > verde_count THEN 1 ELSE 0 END) AS mangos_maduros
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        mangos_verdes = result[0] if result and result[0] is not None else 0
+        mangos_maduros = result[1] if result and result[1] is not None else 0
+        total_mangos = mangos_verdes + mangos_maduros
+        
+        return round((mangos_maduros / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_porcentaje_mangos_con_defecto_lote(lote_number):
     """
-    Retorna el porcentaje de mangos con defecto del lote usando el modelo defectos.pt.
+    Retorna el porcentaje de mangos únicos clasificados con defecto
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defectos', 'mango_sin_defectos'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_con_defectos'))
-    mango_con_defecto = cursor.fetchone()[0]
-    conn.close()
-    return round((mango_con_defecto / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_con_defectos' THEN 1 ELSE 0 END) AS con_defectos_count,
+                SUM(CASE WHEN detection_type = 'mango_sin_defectos' THEN 1 ELSE 0 END) AS sin_defectos_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'defectos.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN con_defectos_count > sin_defectos_count THEN 1 ELSE 0 END) AS mangos_con_defecto,
+            SUM(CASE WHEN sin_defectos_count > con_defectos_count THEN 1 ELSE 0 END) AS mangos_sin_defecto
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        mangos_con_defecto = result[0] if result and result[0] is not None else 0
+        mangos_sin_defecto = result[1] if result and result[1] is not None else 0
+        total_mangos = mangos_con_defecto + mangos_sin_defecto
+        
+        return round((mangos_con_defecto / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_porcentaje_mangos_sin_defecto_lote(lote_number):
     """
-    Retorna el porcentaje de mangos sin defecto del lote usando el modelo defectos.pt.
+    Retorna el porcentaje de mangos únicos clasificados sin defecto
+    para un lote dado, usando la lógica de mayoría de votos por item_id.
     """
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND (detection_type = ? OR detection_type = ?)''', (int(lote_number), 'defectos.pt', 'mango_con_defectos', 'mango_sin_defectos'))
-    total = cursor.fetchone()[0]
-    cursor.execute('''SELECT COUNT(*) FROM detections WHERE lote_number = ? AND model_name = ? AND detection_type = ?''', (int(lote_number), 'defectos.pt', 'mango_sin_defectos'))
-    mango_sin_defecto = cursor.fetchone()[0]
-    conn.close()
-    return round((mango_sin_defecto / total) * 100, 2) if total > 0 else 0.0
+
+    try:
+        query = """
+        WITH item_votes AS (
+            SELECT
+                item_id,
+                SUM(CASE WHEN detection_type = 'mango_con_defectos' THEN 1 ELSE 0 END) AS con_defectos_count,
+                SUM(CASE WHEN detection_type = 'mango_sin_defectos' THEN 1 ELSE 0 END) AS sin_defectos_count
+            FROM
+                detections
+            WHERE
+                lote_number = ? AND model_name = 'defectos.pt'
+            GROUP BY
+                item_id
+        )
+        SELECT
+            SUM(CASE WHEN con_defectos_count > sin_defectos_count THEN 1 ELSE 0 END) AS mangos_con_defecto,
+            SUM(CASE WHEN sin_defectos_count > con_defectos_count THEN 1 ELSE 0 END) AS mangos_sin_defecto
+        FROM
+            item_votes;
+        """
+        cursor.execute(query, (int(lote_number),))
+        result = cursor.fetchone()
+
+        mangos_con_defecto = result[0] if result and result[0] is not None else 0
+        mangos_sin_defecto = result[1] if result and result[1] is not None else 0
+        total_mangos = mangos_con_defecto + mangos_sin_defecto
+        
+        return round((mangos_sin_defecto / total_mangos) * 100, 2) if total_mangos > 0 else 0.0
+
+    except sqlite3.Error as e:
+        print(f"Error en la base de datos: {e}")
+        return 0.0
+    finally:
+        conn.close()
 
 def get_ids_lote(lote_number):
     """
@@ -516,20 +986,28 @@ def get_exportabilidad_mango(lote_number, item_id):
     cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'exportabilidad.pt'))
     resultados = [row[0] for row in cursor.fetchall()]
     conn.close()
+
     if not resultados:
         return 'Sin datos suficientes'
-    total = len(resultados)
-    exportable = sum(1 for r in resultados if r == 'exportable')
-    no_exportable = sum(1 for r in resultados if r == 'no_exportable')
-    nulo = sum(1 for r in resultados if r == 'no detections')
-    if exportable / total >= 0.5:
-        return 'Exportable'
-    elif no_exportable / total >= 0.5:
-        return 'No Exportable'
-    elif nulo / total >= 0.5:
+
+    # Se revisa si todas las detecciones son 'no detections'
+    if all(r == 'no detections' for r in resultados):
         return 'Nulo'
-    else:
+
+    # Se filtran las detecciones que no son 'no detections'
+    detecciones_validas = [r for r in resultados if r != 'no detections']
+    
+    if not detecciones_validas:
         return 'Sin datos suficientes'
+
+    # Se cuentan las detecciones válidas
+    exportable = detecciones_validas.count('exportable')
+    no_exportable = detecciones_validas.count('no_exportable')
+
+    if no_exportable >= exportable:
+        return 'No Exportable'
+    else:
+        return 'Exportable'
 
 def get_madurez_mango(lote_number, item_id):
     """
@@ -545,20 +1023,28 @@ def get_madurez_mango(lote_number, item_id):
     cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'madurez.pt'))
     resultados = [row[0] for row in cursor.fetchall()]
     conn.close()
+
     if not resultados:
         return 'Sin datos suficientes'
-    total = len(resultados)
-    verde = sum(1 for r in resultados if r == 'mango_verde')
-    maduro = sum(1 for r in resultados if r == 'mango_maduro')
-    nulo = sum(1 for r in resultados if r == 'no detections')
-    if verde / total >= 0.5:
-        return 'Verde'
-    elif maduro / total >= 0.5:
-        return 'Maduro'
-    elif nulo / total >= 0.5:
+
+    # Se revisa si todas las detecciones son 'no detections'
+    if all(r == 'no detections' for r in resultados):
         return 'Nulo'
-    else:
+
+    # Se filtran las detecciones que no son 'no detections'
+    detecciones_validas = [r for r in resultados if r != 'no detections']
+    
+    if not detecciones_validas:
         return 'Sin datos suficientes'
+
+    # Se cuentan las detecciones válidas
+    verde = detecciones_validas.count('mango_verde')
+    maduro = detecciones_validas.count('mango_maduro')
+
+    if maduro >= verde:
+        return 'Maduro'
+    else:
+        return 'Verde'
 
 def get_defectos_mango(lote_number, item_id):
     """
@@ -574,20 +1060,28 @@ def get_defectos_mango(lote_number, item_id):
     cursor.execute('''SELECT detection_type FROM detections WHERE lote_number = ? AND item_id = ? AND model_name = ?''', (int(lote_number), int(item_id), 'defectos.pt'))
     resultados = [row[0] for row in cursor.fetchall()]
     conn.close()
+
     if not resultados:
         return 'Sin datos suficientes'
-    total = len(resultados)
-    sin_defectos = sum(1 for r in resultados if r == 'mango_sin_defectos')
-    con_defectos = sum(1 for r in resultados if r == 'mango_con_defectos')
-    nulo = sum(1 for r in resultados if r == 'no detections')
-    if sin_defectos / total >= 0.5:
-        return 'No'
-    elif con_defectos / total >= 0.5:
-        return 'Si'
-    elif nulo / total >= 0.5:
+
+    # Se revisa si todas las detecciones son 'no detections'
+    if all(r == 'no detections' for r in resultados):
         return 'Nulo'
-    else:
+
+    # Se filtran las detecciones que no son 'no detections'
+    detecciones_validas = [r for r in resultados if r != 'no detections']
+    
+    if not detecciones_validas:
         return 'Sin datos suficientes'
+
+    # Se cuentan las detecciones válidas
+    sin_defectos = detecciones_validas.count('mango_sin_defectos')
+    con_defectos = detecciones_validas.count('mango_con_defectos')
+
+    if con_defectos >= sin_defectos:
+        return 'Si'
+    else:
+        return 'No'
 
 def get_confianza_promedio_exportabilidad_mango(lote_number, item_id):
     """
